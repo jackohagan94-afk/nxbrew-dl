@@ -37,3 +37,26 @@ nxbrew-dl
 To get things set up, see the [documentation](https://nxbrew-dl.readthedocs.io/en/latest/).
 
 We encourage users to open [issues](https://github.com/bbtufty/nxbrew-dl/issues>) as and where they find them.
+
+## Recent Fixes (2026-05-14)
+
+### Cloudflare/Anti-Bot Bypass
+The scraper now uses `curl_cffi` with TLS fingerprint impersonation instead of plain `requests`. This bypasses Cloudflare and adblock detection on nxbrew domains. Impersonation profiles are auto-selected per domain:
+- `nxbrew.net` → Chrome
+- `nxbrew.me` → Safari 15.5
+
+### Multi-Domain Game Index Aggregation
+The site migrated from `nxbrew.me` to `nxbrew.net`, but not all games were migrated. The scraper now aggregates games from both:
+- Primary: `{nxbrew_url}/game-index/` (AlphaListing plugin format, ~1293 games)
+- Alternative: `nxbrew.me/games/` (entry-content list format, ~168 additional games)
+- **Total: ~1,461 games**
+
+### Updated Index Parsing
+The nxbrew.net site replaced its old `div#easyindex-index > li` structure with a WordPress AlphaListing plugin (`div.az-listing > div.letter-section > ul.az-columns > li > a`). The parser now supports both formats with automatic fallback.
+
+### Known Limitations
+- `nxbrew.me` uses JavaScript-obfuscated download buttons (`onclick="downloadFile(n)"`) - individual game pages on this domain cannot be scraped. Only games hosted on `nxbrew.net` support full end-to-end download.
+- URL validation in the GUI now uses `curl_cffi` with impersonation for connectivity checks.
+
+### Configuration
+Set `nxbrew_url` in `config.yml` to `https://nxbrew.net`. Alternative domains are configured in `nxbrew_dl/util/html_tools.py` (`ALTERNATIVE_INDICES` list).
