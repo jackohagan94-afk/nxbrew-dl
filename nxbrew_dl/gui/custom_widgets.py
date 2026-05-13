@@ -93,6 +93,12 @@ class TableRowWidget(QTableWidgetItem):
             column_position=5,
         )
 
+        # Set IGDB rating in column 6
+        self.set_rating(
+            table=table,
+            row_position=row_position,
+        )
+
         # Finally, resize the table. Shrink everything but title to minimum
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
@@ -157,6 +163,39 @@ class TableRowWidget(QTableWidgetItem):
         has_filetype.setFlags(Qt.ItemFlag.ItemIsEnabled)
 
         table.setItem(row_position, column_position, has_filetype)
+
+    def set_rating(self, table, row_position):
+        """Set the IGDB rating for the row
+
+        Args:
+            table (QTableWidget): Table widget
+            row_position (int): Row position
+        """
+        rating = self.row_dict.get("igdb_rating")
+        item = QTableWidgetItem()
+        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+
+        if rating is None:
+            if self.row_dict.get("igdb_match") is False:
+                item.setText("-")
+                colour = QBrush(QColor(128, 128, 128, 255))
+            else:
+                item.setText("?")
+                colour = QBrush(COLOURS["orange"])
+        else:
+            item.setText(str(rating))
+            if rating >= 80:
+                colour = QBrush(COLOURS["green"])
+            elif rating >= 60:
+                colour = QBrush(COLOURS["orange"])
+            else:
+                colour = QBrush(COLOURS["red"])
+
+        colour.setStyle(Qt.BrushStyle.SolidPattern)
+        item.setBackground(colour)
+        table.setItem(row_position, 6, item)
+
 
 class SortableCheckboxTableWidgetItem(QTableWidgetItem):
     """Modified checkbox that allows for sorting"""

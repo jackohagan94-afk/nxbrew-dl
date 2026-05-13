@@ -60,3 +60,30 @@ The nxbrew.net site replaced its old `div#easyindex-index > li` structure with a
 
 ### Configuration
 Set `nxbrew_url` in `config.yml` to `https://nxbrew.net`. Alternative domains are configured in `nxbrew_dl/util/html_tools.py` (`ALTERNATIVE_INDICES` list).
+
+## IGDB Integration (NEW)
+
+The app can optionally enrich and filter the game library using [IGDB](https://www.igdb.com/) ratings and metadata. This helps build a quality library by excluding shovelware, visual novels, and low-rated games.
+
+### Setup
+1. Create a Twitch Developer application at https://dev.twitch.tv/console/apps
+2. Copy your **Client ID** and **Client Secret**
+3. Enter them in the NXBrew-dl GUI under "IGDB Filtering"
+4. Click **Refresh** to re-scrape with IGDB enrichment
+
+### Filtering Options
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Min Rating | 50/100 | Exclude games below this IGDB rating |
+| Exclude Visual Novels | On | Filter out visual novel genre |
+| Exclude Shovelware | On | Filter out puzzle, quiz, board game, educational shovelware |
+| Switch Only | On | Only show games confirmed to have a Switch release on IGDB |
+
+### Rating Column
+A **Rating** column shows each game's IGDB score (0-100) color-coded:
+- 🟢 Green: 80+
+- 🟠 Orange: 60-79
+- 🔴 Red: Below 60
+- ⚪ Grey: Not found on IGDB
+
+Results are cached in `igdb_cache.json` to avoid repeated API calls.

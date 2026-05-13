@@ -19,6 +19,12 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QMainWindow,
     QFileDialog,
+    QLabel,
+    QLineEdit,
+    QCheckBox,
+    QSpinBox,
+    QTableWidgetItem,
+    QSizePolicy,
 )
 from myjdapi.exception import MYJDException
 from packaging.version import Version
@@ -41,6 +47,7 @@ from ..util import (
     save_yml,
     load_json,
 )
+from ..util.igdb_tools import IGDBClient, filter_game_dict, DEFAULT_MIN_RATING
 
 
 def open_game_url(item):
@@ -165,6 +172,18 @@ class MainWindow(QMainWindow):
         self.game_table = self.ui.tableGames
         self.game_dict = {}
 
+        # Add IGDB rating column to the table (column 6)
+        self.game_table.setColumnCount(7)
+        self.game_table.setHorizontalHeaderItem(6, QTableWidgetItem("Rating"))
+        self.game_table.horizontalHeaderItem(6).setToolTip("IGDB Rating")
+
+        # Set up IGDB config widgets dynamically
+        self._setup_igdb_widgets()
+
+        # Initialize IGDB client (lazy, created on first use)
+        self.igdb_client = None
+        self.igdb_cache_file = os.path.join(os.getcwd(), "igdb_cache.json")
+
         # Add in refresh option
         refresh_button = self.ui.pushButtonRefresh
         refresh_button.clicked.connect(self.load_table)
@@ -203,6 +222,89 @@ class MainWindow(QMainWindow):
             sys.exit()
 
         return update_box
+
+    def _setup_igdb_widgets(self):
+        """Dynamically add IGDB config widgets to the config panel"""
+
+        layout = self.ui.verticalLayoutConfig
+
+        # Insert before the Discord URL (find it by traversing backwards)
+        spacer_idx = layout.indexOf(self.ui.verticalSpacer_5)
+
+        # IGDB section label
+        self.labelIGDB = QLabel("IGDB Filtering:", self.ui.centralwidget)
+        self.labelIGDB.setObjectName("labelIGDB")
+        layout.insertWidget(spacer_idx, self.labelIGDB)
+        spacer_idx += 1
+
+        # IGDB Client ID
+        self.lineEditIGDBClientID = QLineEdit(self.ui.centralwidget)
+        self.lineEditIGDBClientID.setObjectName("lineEditIGDBClientID")
+        self.lineEditIGDBClientID.setPlaceholderText("Twitch Client ID")
+        self.lineEditIGDBClientID.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed))
+        layout.insertWidget(spacer_idx, self.lineEditIGDBClientID)
+        spacer_idx += 1
+
+        # IGDB Client Secret
+        self.lineEditIGDBClientSecret = QLineEdit(self.ui.centralwidget)
+        self.lineEditIGDBClientSecret.setObjectName("lineEditIGDBClientSecret")
+        self.lineEditIGDBClientSecret.setPlaceholderText("Twitch Client Secret")
+        self.lineEditIGDBClientSecret.setEchoMode(QLineEdit.EchoMode.Password)
+        self.lineEditIGDBClientSecret.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed))
+        layout.insertWidget(spacer_idx, self.lineEditIGDBClientSecret)
+        spacer_idx += 1
+
+        # Minimum rating spinbox
+        self.spinBoxMinRating = QSpinBox(self.ui.centralwidget)
+        self.spinBoxMinRating.setObjectName("spinBoxMinRating")
+        self.spinBoxMinRating.setRange(0, 100)
+        self.spinBoxMinRating.setValue(DEFAULT_MIN_RATING)
+        self.spinBoxMinRating.setPrefix("Min Rating: ")
+        self.spinBoxMinRating.setSuffix("/100")
+        self.spinBoxMinRating.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed))
+        layout.insertWidget(spacer_idx, self.spinBoxMinRating)
+        spacer_idx += 1
+
+        # IGDB filter checkboxes
+        self.checkBoxIGDBVN = QCheckBox("Exclude Visual Novels", self.ui.centralwidget)
+        self.checkBoxIGDBVN.setObjectName("checkBoxIGDBVN")
+        self.checkBoxIGDBVN.setChecked(True)
+        layout.insertWidget(spacer_idx, self.checkBoxIGDBVN)
+        spacer_idx += 1
+
+        self.checkBoxIGDBShovelware = QCheckBox("Exclude Shovelware", self.ui.centralwidget)
+        self.checkBoxIGDBShovelware.setObjectName("checkBoxIGDBShovelware")
+        self.checkBoxIGDBShovelware.setChecked(True)
+        layout.insertWidget(spacer_idx, self.checkBoxIGDBShovelware)
+        spacer_idx += 1
+
+        self.checkBoxSwitchOnly = QCheckBox("Switch Releases Only", self.ui.centralwidget)
+        self.checkBoxSwitchOnly.setObjectName("checkBoxSwitchOnly")
+        self.checkBoxSwitchOnly.setChecked(True)
+        layout.insertWidget(spacer_idx, self.checkBoxSwitchOnly)
+        spacer_idx += 1
+
+    def _get_igdb_client(self):
+        """Lazy-initialize the IGDB client"""
+        if self.igdb_client is not None:
+            return self.igdb_client
+
+        client_id = self.user_config.get("igdb_client_id", "")
+        client_secret = self.user_config.get("igdb_client_secret", "")
+        if not client_id or not client_secret:
+            return None
+
+        try:
+            self.igdb_client = IGDBClient(
+                client_id=client_id,
+                client_secret=client_secret,
+                cache_file=self.igdb_cache_file,
+                logger=self.logger,
+            )
+            return self.igdb_client
+        except Exception as e:
+            self.logger.warning(f"IGDB: failed to initialize: {e}")
+            return None
 
     def get_game_dict(self):
         """Get game dictionary from NXBrew A-Z page"""
@@ -262,6 +364,19 @@ class MainWindow(QMainWindow):
         self.game_dict = {}
         self.get_game_dict()
 
+        # Apply IGDB filtering if configured
+        igdb = self._get_igdb_client()
+        if igdb is not None and len(self.game_dict) > 0:
+            igdb_config = {
+                "igdb_min_rating": self.user_config.get("igdb_min_rating", DEFAULT_MIN_RATING),
+                "igdb_exclude_vn": self.user_config.get("igdb_exclude_vn", True),
+                "igdb_exclude_shovelware": self.user_config.get("igdb_exclude_shovelware", True),
+                "igdb_switch_only": self.user_config.get("igdb_switch_only", True),
+            }
+            self.logger.info("Enriching game list with IGDB ratings...")
+            self.game_dict = filter_game_dict(self.game_dict, igdb, igdb_config)
+            self.logger.info(f"IGDB filtering complete: {len(self.game_dict)} games remain")
+
         # Clear out the old table and search bar
         self.search_bar.clear()
         self.game_table.setRowCount(0)
@@ -307,6 +422,8 @@ class MainWindow(QMainWindow):
             "jd_user": self.ui.lineEditJDownloaderUser,
             "jd_pass": self.ui.lineEditJDownloaderPass,
             "discord_url": self.ui.lineEditDiscordURL,
+            "igdb_client_id": self.lineEditIGDBClientID,
+            "igdb_client_secret": self.lineEditIGDBClientSecret,
         }
 
         bool_switches = {
@@ -345,6 +462,16 @@ class MainWindow(QMainWindow):
         # And finally, load the region/language list
         self.regions_languages.load_config()
 
+        # Load IGDB settings
+        if "igdb_min_rating" in self.user_config:
+            self.spinBoxMinRating.setValue(self.user_config["igdb_min_rating"])
+        if "igdb_exclude_vn" in self.user_config:
+            self.checkBoxIGDBVN.setChecked(self.user_config["igdb_exclude_vn"])
+        if "igdb_exclude_shovelware" in self.user_config:
+            self.checkBoxIGDBShovelware.setChecked(self.user_config["igdb_exclude_shovelware"])
+        if "igdb_switch_only" in self.user_config:
+            self.checkBoxSwitchOnly.setChecked(self.user_config["igdb_switch_only"])
+
     def save_config(
         self,
     ):
@@ -357,6 +484,8 @@ class MainWindow(QMainWindow):
             "jd_user": self.ui.lineEditJDownloaderUser.text(),
             "jd_pass": self.ui.lineEditJDownloaderPass.text(),
             "discord_url": self.ui.lineEditDiscordURL.text(),
+            "igdb_client_id": self.lineEditIGDBClientID.text(),
+            "igdb_client_secret": self.lineEditIGDBClientSecret.text(),
         }
 
         bool_switches = {
@@ -393,6 +522,12 @@ class MainWindow(QMainWindow):
         )
         if len(languages) > 0:
             self.user_config["languages"] = languages
+
+        # Save IGDB settings
+        self.user_config["igdb_min_rating"] = self.spinBoxMinRating.value()
+        self.user_config["igdb_exclude_vn"] = self.checkBoxIGDBVN.isChecked()
+        self.user_config["igdb_exclude_shovelware"] = self.checkBoxIGDBShovelware.isChecked()
+        self.user_config["igdb_switch_only"] = self.checkBoxSwitchOnly.isChecked()
 
         save_yml(self.user_config_file, self.user_config)
 
