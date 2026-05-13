@@ -1,16 +1,37 @@
 import os
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
-import requests
+from curl_cffi import requests
 from bs4 import BeautifulSoup
 
 from .regex_tools import get_game_name, check_has_filetype, parse_languages
+
+# Known nxbrew domains and their preferred impersonation profiles
+DOMAIN_IMPERSONATION = {
+    "nxbrew.me": "safari15_5",
+    "nxbrew.net": "chrome",
+}
+
+# Alternative domains with known game indices
+ALTERNATIVE_INDICES = [
+    ("https://nxbrew.me", "games/"),
+]
+
+
+def _get_impersonation(url):
+    """Auto-select impersonation profile based on domain"""
+    hostname = urlparse(url).hostname or ""
+    for domain, imp in DOMAIN_IMPERSONATION.items():
+        if domain in hostname:
+            return imp
+    return "chrome"
 
 
 def get_html_page(
     url,
     cache=False,
     cache_filename="index.html",
+    impersonate=None,
 ):
     """Get an HTML page as a soup
 
@@ -18,14 +39,18 @@ def get_html_page(
         url (string): URL
         cache (bool): If True, will save the game index as a cache. Defaults to False
         cache_filename (string): Filename to cache file to. Defaults to "index.html"
+        impersonate (str): Browser type to impersonate. If None, auto-selects based on domain
     """
 
+    if impersonate is None:
+        impersonate = _get_impersonation(url)
+
     if not cache:
-        r = requests.get(url)
+        r = requests.get(url, impersonate=impersonate)
         soup = BeautifulSoup(r.content, "html.parser")
     else:
         if not os.path.exists(cache_filename):
-            r = requests.get(url)
+            r = requests.get(url, impersonate=impersonate)
             with open(cache_filename, mode="wb") as f:
                 f.write(r.content)
             r = r.content
@@ -37,64 +62,158 @@ def get_html_page(
     return soup
 
 
+def _parse_li_entries(soup, base_url, general_config, regex_config, game_dict):
+    """Parse game entries from <ul><li><a> format (old site structure)
+
+    Args:
+        soup (BeautifulSoup): Parsed page
+        base_url (str): Base URL for resolving relative links
+        general_config (dict): General configuration
+        regex_config (dict): Regex configuration
+        game_dict (dict): Existing game dict to merge into
+    """
+    nsp_xci_variations = regex_config["nsp_variations"] + regex_config["xci_variations"]
+
+    # Look for a ul with many game links inside entry-content or #content
+    entry = soup.find("div", class_="entry-content") or soup.find("div", class_="entry") or soup.find(id="content")
+    if entry is None:
+        return
+
+    for ul in entry.find_all("ul"):
+        items = ul.find_all("li")
+        if len(items) < 10:
+            continue
+        for item in items:
+            a = item.find("a")
+            if a is None:
+                continue
+            long_name = item.get_text(strip=True)
+            if long_name in general_config["forbidden_titles"]:
+                continue
+            short_name = get_game_name(long_name, nsp_xci_variations=nsp_xci_variations)
+            game_url = a.get("href")
+            if game_url and not game_url.startswith("http"):
+                game_url = urljoin(base_url, game_url)
+            if game_url in game_dict:
+                continue
+            remaining_name = long_name.replace(short_name, "")
+            has_nsp = check_has_filetype(remaining_name, regex_config["nsp_variations"])
+            has_xci = check_has_filetype(remaining_name, regex_config["xci_variations"])
+            has_update = check_has_filetype(remaining_name, regex_config["update_variations"])
+            has_dlc = check_has_filetype(remaining_name, regex_config["dlc_variations"])
+            game_dict[game_url] = {
+                "long_name": long_name,
+                "short_name": short_name,
+                "url": game_url,
+                "has_nsp": has_nsp,
+                "has_xci": has_xci,
+                "has_update": has_update,
+                "has_dlc": has_dlc,
+            }
+        break
+
+
+def _parse_az_listing(soup, general_config, regex_config, game_dict):
+    """Parse game entries from AlphaListing format (new site structure)
+
+    Args:
+        soup (BeautifulSoup): Parsed page
+        general_config (dict): General configuration
+        regex_config (dict): Regex configuration
+        game_dict (dict): Existing game dict to merge into
+    """
+    nsp_xci_variations = regex_config["nsp_variations"] + regex_config["xci_variations"]
+
+    az_listing = soup.find("div", class_="az-listing")
+    if az_listing is None:
+        return False
+
+    for letter_section in az_listing.find_all("div", class_="letter-section"):
+        for ul in letter_section.find_all("ul", class_="az-columns"):
+            for item in ul.find_all("li"):
+                a = item.find("a")
+                if a is None:
+                    continue
+                long_name = a.get_text(strip=True)
+                if long_name in general_config["forbidden_titles"]:
+                    continue
+                short_name = get_game_name(long_name, nsp_xci_variations=nsp_xci_variations)
+                game_url = a.get("href")
+                if game_url in game_dict:
+                    continue
+                remaining_name = long_name.replace(short_name, "")
+                has_nsp = check_has_filetype(remaining_name, regex_config["nsp_variations"])
+                has_xci = check_has_filetype(remaining_name, regex_config["xci_variations"])
+                has_update = check_has_filetype(remaining_name, regex_config["update_variations"])
+                has_dlc = check_has_filetype(remaining_name, regex_config["dlc_variations"])
+                game_dict[game_url] = {
+                    "long_name": long_name,
+                    "short_name": short_name,
+                    "url": game_url,
+                    "has_nsp": has_nsp,
+                    "has_xci": has_xci,
+                    "has_update": has_update,
+                    "has_dlc": has_dlc,
+                }
+    return True
+
+
 def get_game_dict(
     general_config,
     regex_config,
     nxbrew_url,
 ):
-    """Download the game index, and parse relevant info out of it
+    """Download the game index from primary and alternative domains
 
     Args:
         general_config (dict): General configuration
         regex_config (dict): Regex configuration
-        nxbrew_url (string): NXBrew URL
+        nxbrew_url (string): Primary NXBrew URL
     """
 
     game_dict = {}
 
-    url = urljoin(nxbrew_url, "Index/game-index/games/")
-
-    # Load in the HTML
-    game_html = get_html_page(
-        url,
-        cache_filename="game_index.html",
-    )
-    index = game_html.find("div", {"id": "easyindex-index"})
-
     nsp_xci_variations = regex_config["nsp_variations"] + regex_config["xci_variations"]
-    for item in index.find_all("li"):
 
-        # Get the long name, the short name, and the URL
-        long_name = item.text
+    # 1. Try primary domain: {nxbrew_url}/game-index/ (AlphaListing format)
+    url = urljoin(nxbrew_url, "game-index/")
+    game_html = get_html_page(url, cache_filename="game_index_primary.html")
 
-        # If there are any forbidden titles, skip them here
-        if long_name in general_config["forbidden_titles"]:
-            continue
+    if not _parse_az_listing(game_html, general_config, regex_config, game_dict):
+        # Fallback: old easyindex-index format
+        index = game_html.find("div", {"id": "easyindex-index"})
+        if index is None:
+            # Try li entries in entry-content
+            _parse_li_entries(game_html, nxbrew_url, general_config, regex_config, game_dict)
+        else:
+            for item in index.find_all("li"):
+                long_name = item.text
+                if long_name in general_config["forbidden_titles"]:
+                    continue
+                short_name = get_game_name(long_name, nsp_xci_variations=nsp_xci_variations)
+                game_url = item.find("a").get("href")
+                if game_url in game_dict:
+                    continue
+                remaining_name = long_name.replace(short_name, "")
+                has_nsp = check_has_filetype(remaining_name, regex_config["nsp_variations"])
+                has_xci = check_has_filetype(remaining_name, regex_config["xci_variations"])
+                has_update = check_has_filetype(remaining_name, regex_config["update_variations"])
+                has_dlc = check_has_filetype(remaining_name, regex_config["dlc_variations"])
+                game_dict[game_url] = {
+                    "long_name": long_name,
+                    "short_name": short_name,
+                    "url": game_url,
+                    "has_nsp": has_nsp,
+                    "has_xci": has_xci,
+                    "has_update": has_update,
+                    "has_dlc": has_dlc,
+                }
 
-        short_name = get_game_name(long_name, nsp_xci_variations=nsp_xci_variations)
-        url = item.find("a").get("href")
-
-        if url in game_dict:
-            raise ValueError(f"Duplicate URLs found: {url}")
-
-        # Pull out whether NSP/XCI, and whether it has updates/DLCs
-        remaining_name = long_name.replace(short_name, "")
-        has_nsp = check_has_filetype(remaining_name, regex_config["nsp_variations"])
-        has_xci = check_has_filetype(remaining_name, regex_config["xci_variations"])
-        has_update = check_has_filetype(
-            remaining_name, regex_config["update_variations"]
-        )
-        has_dlc = check_has_filetype(remaining_name, regex_config["dlc_variations"])
-
-        game_dict[url] = {
-            "long_name": long_name,
-            "short_name": short_name,
-            "url": url,
-            "has_nsp": has_nsp,
-            "has_xci": has_xci,
-            "has_update": has_update,
-            "has_dlc": has_dlc,
-        }
+    # 2. Try alternative domains with known index paths
+    for alt_domain, alt_path in ALTERNATIVE_INDICES:
+        alt_url = urljoin(alt_domain, alt_path)
+        alt_html = get_html_page(alt_url, cache_filename=f"game_index_alt_{urlparse(alt_domain).hostname}.html")
+        _parse_li_entries(alt_html, alt_domain, general_config, regex_config, game_dict)
 
     return game_dict
 

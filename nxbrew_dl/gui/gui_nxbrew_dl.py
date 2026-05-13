@@ -5,7 +5,7 @@ import traceback
 from functools import partial
 from urllib.parse import urlparse
 
-import requests
+from curl_cffi import requests
 from PySide6.QtCore import (
     Slot,
     Signal,
@@ -214,7 +214,7 @@ class MainWindow(QMainWindow):
             return False
 
         try:
-            _ = requests.get(self.user_config["nxbrew_url"])
+            _ = requests.get(self.user_config["nxbrew_url"], impersonate="chrome")
         except (requests.exceptions.SSLError, requests.exceptions.MissingSchema) as e:
             self.logger.warning(
                 "Error found in NXBrew URL! Enter one that works and refresh the game list!"
