@@ -15,14 +15,33 @@ CATEGORY_MAIN_GAME = 0
 SHOVELWARE_GENRES = {
     9: "Puzzle",
     26: "Quiz/Trivia",
-    35: "Board Game",
-    7: "Educational",
+    35: "Card & Board Game",
     30: "Pinball",
-    34: "Arcade",
+    33: "Arcade",
+    13: "Simulator",
 }
 
 # Visual novel genre ID on IGDB
-VISUAL_NOVEL_GENRE = 31
+VISUAL_NOVEL_GENRE = 34
+
+# Notable platform IDs
+NOTABLE_PLATFORMS = {
+    6: "PC",
+    48: "PS4",
+    167: "PS5",
+    49: "Xbox One",
+    169: "Xbox Series",
+    130: "Switch",
+    3: "Linux",
+    14: "Mac",
+    39: "iOS",
+    34: "Android",
+    46: "PS Vita",
+    41: "Wii U",
+    5: "Wii",
+    20: "NDS",
+    37: "3DS",
+}
 
 # Default minimum rating threshold (0-100)
 DEFAULT_MIN_RATING = 50
@@ -110,8 +129,7 @@ class IGDBClient:
                 f'search "{name}";'
                 "fields name,rating,total_rating,aggregated_rating,"
                 "genres,platforms,category,first_release_date;"
-                "limit 5;"
-                f'where category={CATEGORY_MAIN_GAME};'
+                "limit 10;"
             ))
         except Exception as e:
             self._log("warning", f"IGDB search failed for '{name}': {e}")
@@ -122,11 +140,27 @@ class IGDBClient:
             self._save_cache()
             return None
 
-        # Find best match by name similarity
+        # Find best match by name similarity, preferring rated results on Switch
         best_match = None
         best_score = 0
+        search_lower = name.lower()
         for game in results:
-            score = SequenceMatcher(None, name.lower(), game["name"].lower()).ratio()
+            game_name = game.get("name", "")
+            score = SequenceMatcher(None, search_lower, game_name.lower()).ratio()
+
+            # Bonus for exact name match
+            if game_name.lower() == search_lower:
+                score += 0.5
+
+            # Bonus for having a rating
+            has_rating = game.get("rating") or game.get("total_rating")
+            if has_rating:
+                score += 0.1
+
+            # Bonus for Switch platform
+            if PLATFORM_SWITCH in game.get("platforms", []):
+                score += 0.1
+
             if score > best_score:
                 best_score = score
                 best_match = game
@@ -208,6 +242,12 @@ class IGDBClient:
                 is_shovelware = True
                 genre_names.append(SHOVELWARE_GENRES[gid])
 
+        # Map platform IDs to names
+        other_platforms = []
+        for pid in platform_ids:
+            if pid != PLATFORM_SWITCH and pid in NOTABLE_PLATFORMS:
+                other_platforms.append(NOTABLE_PLATFORMS[pid])
+
         return {
             "rating": rating,
             "total_rating": game.get("total_rating"),
@@ -216,6 +256,7 @@ class IGDBClient:
             "is_visual_novel": is_vn,
             "is_shovelware": is_shovelware,
             "on_switch": PLATFORM_SWITCH in platform_ids,
+            "other_platforms": other_platforms,
             "igdb_name": game.get("name"),
         }
 
@@ -231,6 +272,7 @@ def filter_game_dict(game_dict, igdb_client, config):
             - igdb_exclude_vn (bool): Exclude visual novels
             - igdb_exclude_shovelware (bool): Exclude shovelware genres
             - igdb_switch_only (bool): Only include games with Switch release
+            - igdb_exclude_multi_platform (bool): Exclude games on other platforms
 
     Returns:
         dict: Filtered game_dict with added IGDB metadata
@@ -239,6 +281,7 @@ def filter_game_dict(game_dict, igdb_client, config):
     exclude_vn = config.get("igdb_exclude_vn", True)
     exclude_shovelware = config.get("igdb_exclude_shovelware", True)
     switch_only = config.get("igdb_switch_only", True)
+    exclude_multi = config.get("igdb_exclude_multi_platform", False)
 
     enriched = {}
     filtered_count = 0
@@ -258,6 +301,7 @@ def filter_game_dict(game_dict, igdb_client, config):
         info["igdb_match"] = True
         info["igdb_genres"] = igdb_info["genres"]
         info["igdb_name"] = igdb_info["igdb_name"]
+        info["igdb_other_platforms"] = igdb_info.get("other_platforms", [])
 
         # Apply filters
         if exclude_vn and igdb_info["is_visual_novel"]:
@@ -269,6 +313,10 @@ def filter_game_dict(game_dict, igdb_client, config):
             continue
 
         if switch_only and not igdb_info["on_switch"]:
+            filtered_count += 1
+            continue
+
+        if exclude_multi and len(igdb_info.get("other_platforms", [])) > 0:
             filtered_count += 1
             continue
 

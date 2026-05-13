@@ -284,6 +284,13 @@ class MainWindow(QMainWindow):
         layout.insertWidget(spacer_idx, self.checkBoxSwitchOnly)
         spacer_idx += 1
 
+        self.checkBoxExcludeMultiPlatform = QCheckBox("Exclude Multi-Platform Games", self.ui.centralwidget)
+        self.checkBoxExcludeMultiPlatform.setObjectName("checkBoxExcludeMultiPlatform")
+        self.checkBoxExcludeMultiPlatform.setChecked(False)
+        self.checkBoxExcludeMultiPlatform.setToolTip("Filter out games also available on PC, Xbox, PlayStation")
+        layout.insertWidget(spacer_idx, self.checkBoxExcludeMultiPlatform)
+        spacer_idx += 1
+
     def _get_igdb_client(self):
         """Lazy-initialize the IGDB client"""
         if self.igdb_client is not None:
@@ -372,6 +379,7 @@ class MainWindow(QMainWindow):
                 "igdb_exclude_vn": self.user_config.get("igdb_exclude_vn", True),
                 "igdb_exclude_shovelware": self.user_config.get("igdb_exclude_shovelware", True),
                 "igdb_switch_only": self.user_config.get("igdb_switch_only", True),
+                "igdb_exclude_multi_platform": self.user_config.get("igdb_exclude_multi_platform", False),
             }
             self.logger.info("Enriching game list with IGDB ratings...")
             self.game_dict = filter_game_dict(self.game_dict, igdb, igdb_config)
@@ -471,6 +479,8 @@ class MainWindow(QMainWindow):
             self.checkBoxIGDBShovelware.setChecked(self.user_config["igdb_exclude_shovelware"])
         if "igdb_switch_only" in self.user_config:
             self.checkBoxSwitchOnly.setChecked(self.user_config["igdb_switch_only"])
+        if "igdb_exclude_multi_platform" in self.user_config:
+            self.checkBoxExcludeMultiPlatform.setChecked(self.user_config["igdb_exclude_multi_platform"])
 
     def save_config(
         self,
@@ -528,6 +538,7 @@ class MainWindow(QMainWindow):
         self.user_config["igdb_exclude_vn"] = self.checkBoxIGDBVN.isChecked()
         self.user_config["igdb_exclude_shovelware"] = self.checkBoxIGDBShovelware.isChecked()
         self.user_config["igdb_switch_only"] = self.checkBoxSwitchOnly.isChecked()
+        self.user_config["igdb_exclude_multi_platform"] = self.checkBoxExcludeMultiPlatform.isChecked()
 
         save_yml(self.user_config_file, self.user_config)
 
