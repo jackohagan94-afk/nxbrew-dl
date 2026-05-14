@@ -237,6 +237,7 @@ def get_languages(soup, lang_dict):
                 lang_dict=lang_dict,
             )
             return langs
+    return []
 
 
 def get_thumb_url(soup):

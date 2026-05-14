@@ -243,6 +243,8 @@ class NXBrew:
             soup,
             lang_dict=self.general_config["languages"],
         )
+        if langs is None:
+            langs = []
         langs.sort()
 
         self.logger.info(f"Found languages across all releases:")

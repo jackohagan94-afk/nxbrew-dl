@@ -125,12 +125,25 @@ class IGDBClient:
             return self.cache[cache_key]
 
         try:
+            # Try exact name search first
             results = self._api_call("games", (
                 f'search "{name}";'
                 "fields name,rating,total_rating,aggregated_rating,"
                 "genres,platforms,category,first_release_date;"
                 "limit 10;"
             ))
+
+            # If no results, try a shorter search (first 3-4 words)
+            if not results:
+                words = name.split()
+                if len(words) > 4:
+                    shorter = " ".join(words[:4])
+                    results = self._api_call("games", (
+                        f'search "{shorter}";'
+                        "fields name,rating,total_rating,aggregated_rating,"
+                        "genres,platforms,category,first_release_date;"
+                        "limit 10;"
+                    ))
         except Exception as e:
             self._log("warning", f"IGDB search failed for '{name}': {e}")
             return None
@@ -165,7 +178,7 @@ class IGDBClient:
                 best_score = score
                 best_match = game
 
-        if best_match and best_score < 0.5:
+        if best_match and best_score < 0.35:
             best_match = None
 
         self.cache[cache_key] = best_match
