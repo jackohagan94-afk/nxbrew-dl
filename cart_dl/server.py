@@ -22,9 +22,19 @@ regex_config = load_yml(os.path.join(MOD_DIR, "configs", "regex.yml"))
 IGDBClient.load_precache()
 
 _game_dict = None
-_games_cache = None  # Pre-computed sorted game list for fast pagination
+_games_cache = None
 _download_state = {"running": False, "current": 0, "total": 0, "game": "", "log": []}
 _server_start_time = time.time()
+
+
+def get_user_config():
+    if os.path.exists(CONFIG_FILE):
+        return load_yml(CONFIG_FILE)
+    return {}
+
+
+def save_user_config(config):
+    save_yml(CONFIG_FILE, config)
 
 
 def _build_game_cache():
