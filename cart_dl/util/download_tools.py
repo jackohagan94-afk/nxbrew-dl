@@ -568,25 +568,12 @@ def bypass_ouo(
     logger=None,
     impersonate=None,
     n_retry=0,
-    max_retries=5,
+    max_retries=2,
 ):
-    """Bypass OUO url
-
-    Args:
-        url (str): URL to bypass
-        logger (logging.Logger): Logger to use. Defaults to None,
-            which will not log anything
-        impersonate (str): Type of browser to impersonate. Defaults
-            to None, which will choose randomly from a selection
-        n_retry (int): Current retry. Defaults to 0
-        max_retries (int): Maximum number of retries. Defaults to 5
-    """
-
     if n_retry >= max_retries:
         raise ValueError("Max retries exceeded!")
-
     if impersonate is None:
-        impersonate = random.choice(["chrome120", "safari15_5", "edge101"])
+        impersonate = random.choice(["safari15_5", "chrome120", "edge101"])
 
     client = cffi_requests.Session()
     client.headers.update(
@@ -614,8 +601,8 @@ def bypass_ouo(
         else:
             print(f"Received status code {status_code}. Waiting then retrying")
 
-        time.sleep(10)
-        alternate_imp = random.choice(["chrome120", "safari15_5", "edge101"])
+        time.sleep(2)
+        alternate_imp = random.choice(["safari15_5", "chrome120", "edge101"])
         bypassed_url = bypass_ouo(
             url,
             logger=logger,
@@ -623,6 +610,35 @@ def bypass_ouo(
             n_retry=n_retry + 1,
         )
         return bypassed_url
+
+    next_url = f"{p.scheme}://{p.hostname}/go/{temp_url_id}"
+
+    for _ in range(2):
+
+        if res.headers.get("Location"):
+            break
+
+        bs4 = BeautifulSoup(res.content, "lxml")
+        inputs = None
+        try:
+            inputs = bs4.form.findAll("input", {"name": re.compile(r"token$")})
+        except AttributeError:
+            pass
+
+        if inputs is None:
+            if logger is not None:
+                logger.warning(f"Page load error. Waiting then retrying")
+            else:
+                print(f"Page load error. Waiting then retrying")
+            time.sleep(2)
+            alternate_imp = random.choice(["safari15_5", "chrome120", "edge101"])
+            bypassed_url = bypass_ouo(
+                url,
+                logger=logger,
+                impersonate=alternate_imp,
+                n_retry=n_retry + 1,
+            )
+            return bypassed_url
 
     next_url = f"{p.scheme}://{p.hostname}/go/{temp_url_id}"
 
@@ -699,7 +715,7 @@ def bypass_1link(
     logger=None,
     impersonate=None,
     n_retry=0,
-    max_retries=5,
+    max_retries=3,
 ):
     """Bypass 1link url
 
@@ -742,7 +758,7 @@ def bypass_1link(
         else:
             print(f"Received status code {status_code}. Waiting then retrying")
 
-        time.sleep(10)
+        time.sleep(2)
         bypassed_url = bypass_1link(
             url,
             logger=logger,
