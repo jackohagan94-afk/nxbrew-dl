@@ -16,10 +16,12 @@ DOMAIN_IMPERSONATION = {
 ALTERNATIVE_INDICES = [
     ("https://nxbrew.me", "games/"),
     ("https://nswgame.com", "list-all-game-switch/"),
+    ("https://switch-roms.com", "post-sitemap.xml"),
 ]
 
-# URL pattern used by nswgame for game pages
+# URL patterns used by various sites
 NSWGAME_URL_PATTERN = "nintendo-switch-nsp-xci-nsz-download-free"
+SWITCH_ROMS_URL_PATTERN = "switch-roms.com"
 
 
 def _get_impersonation(url):
@@ -67,6 +69,72 @@ def get_html_page(
 
 
 def _parse_nswgame_index(soup, base_url, general_config, regex_config, game_dict):
+    """Parse nswgame.com list-all-game-switch page"""
+    nsp_xci_variations = regex_config["nsp_variations"] + regex_config["xci_variations"]
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if NSWGAME_URL_PATTERN not in href:
+            continue
+        long_name = a.get_text(strip=True)
+        if not long_name or long_name in general_config["forbidden_titles"]:
+            continue
+        if not href.startswith("http"):
+            href = urljoin(base_url, href)
+        if href in game_dict:
+            continue
+        short_name = get_game_name(long_name, nsp_xci_variations=nsp_xci_variations)
+        remaining_name = long_name.replace(short_name, "")
+        has_nsp = check_has_filetype(remaining_name, regex_config["nsp_variations"])
+        has_xci = check_has_filetype(remaining_name, regex_config["xci_variations"])
+        has_update = check_has_filetype(remaining_name, regex_config["update_variations"])
+        has_dlc = check_has_filetype(remaining_name, regex_config["dlc_variations"])
+        game_dict[href] = {
+            "long_name": long_name, "short_name": short_name, "url": href,
+            "has_nsp": has_nsp, "has_xci": has_xci,
+            "has_update": has_update, "has_dlc": has_dlc,
+        }
+
+
+def _parse_sitemap_xml(soup, base_url, general_config, regex_config, game_dict):
+    """Parse WordPress post-sitemap.xml for game URLs
+
+    Args:
+        soup (BeautifulSoup): Parsed XML
+        base_url (str): Base URL for resolving relative links
+        general_config (dict): General configuration
+        regex_config (dict): Regex configuration
+        game_dict (dict): Existing game dict to merge into
+    """
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(str(soup))
+        ns = {'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+        urls = [u.text for u in root.findall('.//ns:url/ns:loc', ns) if u.text]
+    except Exception:
+        return
+
+    nsp_xci_variations = regex_config["nsp_variations"] + regex_config["xci_variations"]
+    for url in urls:
+        if url in game_dict or url.rstrip("/") == base_url.rstrip("/"):
+            continue
+        # Derive game name from URL slug
+        slug = url.rstrip("/").split("/")[-1].replace("-", " ")
+        long_name = slug
+        short_name = get_game_name(long_name, nsp_xci_variations=nsp_xci_variations)
+        remaining_name = long_name.replace(short_name, "")
+        has_nsp = check_has_filetype(remaining_name, regex_config["nsp_variations"])
+        has_xci = check_has_filetype(remaining_name, regex_config["xci_variations"])
+        has_update = check_has_filetype(remaining_name, regex_config["update_variations"])
+        has_dlc = check_has_filetype(remaining_name, regex_config["dlc_variations"])
+        game_dict[url] = {
+            "long_name": long_name,
+            "short_name": short_name,
+            "url": url,
+            "has_nsp": has_nsp,
+            "has_xci": has_xci,
+            "has_update": has_update,
+            "has_dlc": has_dlc,
+        }
     """Parse nswgame.com list-all-game-switch page
 
     Args:
@@ -258,6 +326,8 @@ def get_game_dict(
         alt_url = urljoin(alt_domain, alt_path)
         alt_html = get_html_page(alt_url, cache=True, cache_filename=f"game_index_alt_{urlparse(alt_domain).hostname}.html")
         if "nswgame" in alt_domain:
+            _parse_nswgame_index(alt_html, alt_domain, general_config, regex_config, game_dict)
+        elif "switch-roms.com" in alt_domain:
             _parse_nswgame_index(alt_html, alt_domain, general_config, regex_config, game_dict)
         else:
             _parse_li_entries(alt_html, alt_domain, general_config, regex_config, game_dict)

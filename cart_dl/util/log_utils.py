@@ -21,13 +21,11 @@ class CartDLLogger(logging.Logger):
     ):
         """Intialise a custom logging class
 
-        This one will do a nice colorlog out to the terminal, and also
-        save a log to file with sensitive info redacted
-
         Args:
             name (str): The name of the logger. Defaults to "CartDL".
             log_level (str): Logging level. Defaults to "INFO"
-            log_dir (str): The directory to save logs to. Defaults to "log"
+            log_dir (str): The directory to save logs to. Defaults to "log".
+                Set to None to skip file logging.
             max_logs (int): The maximum number of logs to save. Defaults to 9
         """
 
@@ -45,24 +43,30 @@ class CartDLLogger(logging.Logger):
         self.redact_patterns = []
         self.redact_filter = None
 
-        # Initialise the logger
         self.propagate = False
         self.file_handler = None
         self.console_handler = None
         self.get_logger()
 
+    def close(self):
+        """Close file handler to release log file locks"""
+        if self.file_handler:
+            self.file_handler.close()
+            self.removeHandler(self.file_handler)
+            self.file_handler = None
+
     def get_logger(self):
-        """Initialise the logging to file, and the GUI logger"""
+        """Initialise the logging to file, and the console logger"""
 
         self.setLevel(self.log_level.upper())
+        self.handlers.clear()
 
         self.console_handler = self.get_gui_logger()
-        self.file_handler = self.get_file_logger()
-
-        # Overwrite previous logger if exists
-        self.handlers.clear()
         self.addHandler(self.console_handler)
-        self.addHandler(self.file_handler)
+
+        if self.log_dir is not None:
+            self.file_handler = self.get_file_logger()
+            self.addHandler(self.file_handler)
 
     def get_file_logger(
         self,
@@ -134,13 +138,14 @@ class CartDLLogger(logging.Logger):
         # Update redact patterns
         self.redact_patterns.append(re.compile(re.escape(redact_pattern)))
 
-        # Remove the filter if it already exists
-        if self.redact_filter is not None:
-            self.handlers[1].removeFilter(self.redact_filter)
+        # Remove the filter if it already exists on the file handler
+        if self.file_handler is not None:
+            if self.redact_filter is not None:
+                self.file_handler.removeFilter(self.redact_filter)
 
-        # Create the new filter and add it, but only to the file handler
-        self.redact_filter = logredactor.RedactingFilter(
-            patterns=self.redact_patterns,
-            default_mask="[REDACTED]",
-        )
-        self.handlers[1].addFilter(self.redact_filter)
+            # Create the new filter and add it to the file handler only
+            self.redact_filter = logredactor.RedactingFilter(
+                patterns=self.redact_patterns,
+                default_mask="[REDACTED]",
+            )
+            self.file_handler.addFilter(self.redact_filter)

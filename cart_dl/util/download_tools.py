@@ -149,6 +149,79 @@ def get_dl_dict_nswgame(soup, dl_sites, dl_mappings):
 
     return dl_dict
 
+
+def get_dl_dict_switchroms(soup, base_url, dl_sites, dl_mappings):
+    """Parse download links from switch-roms.com game pages"""
+    from curl_cffi import requests as cffi_req
+
+    dl_dict = {"release_1": {"regions": ["All"], "languages": ["All"]}}
+    download_links = soup.select("a.download-line") or soup.select("a.download-line.s-button")
+    if not download_links:
+        return dl_dict
+
+    for a in download_links:
+        href = a.get("href", "")
+        if not href or "/download/" not in href:
+            continue
+        text = a.get_text(strip=True).lower()
+        dl_key = "base_game_nsp"
+        full_name = "Base Game NSP"
+        if "dlc" in text: dl_key = "dlc"; full_name = "DLC"
+        elif "update" in text: dl_key = "update"; full_name = "Update"  
+        elif "xci" in text and "nsp" not in text: dl_key = "base_game_xci"; full_name = "Base Game XCI"
+
+        dl_page_url = href if href.startswith("http") else urljoin(base_url, href)
+        try:
+            r = cffi_req.get(dl_page_url, impersonate="chrome", timeout=10)
+            soup2 = BeautifulSoup(r.content, "html.parser")
+            file_link = soup2.select_one("div.download-btn a") or soup2.find("a", href=lambda h: h and "datadock" in h)
+            if file_link:
+                actual_url = file_link.get("href", "")
+                if actual_url and not actual_url.startswith("#"):
+                    if dl_key not in dl_dict["release_1"]:
+                        dl_dict["release_1"][dl_key] = []
+                    found = False
+                    for entry in dl_dict["release_1"][dl_key]:
+                        if "DataDock" in entry:
+                            entry["DataDock"].append(actual_url); found = True
+                    if not found:
+                        dl_dict["release_1"][dl_key].append({"full_name": full_name, "DataDock": [actual_url]})
+        except Exception:
+            pass
+
+    return dl_dict
+
+
+def get_dl_dict(
+    soup,
+    dl_sites,
+    dl_mappings,
+    regions=None,
+    languages=None,
+    regionless_titles=None,
+    implied_languages=None,
+):
+    """For a particular page, parse out download links"""
+
+    if regions is None:
+        regions = []
+    if regionless_titles is None:
+        regionless_titles = []
+    if implied_languages is None:
+        implied_languages = {}
+
+    dl_dict = {}
+
+    # Find the strong tags, then start hunting
+    strong_tag = soup.findAll("strong")
+    found_tag = None
+    for s in strong_tag:
+        if "download links" in s.text.lower():
+            found_tag = s
+            break
+    if found_tag is None:
+        raise ValueError("No download links found")
+
     tag = found_tag.find_next("p")
 
     # Keep looping over to keep finding regions

@@ -3,12 +3,11 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
-from .util.io_tools import load_yml, save_yml, load_json
-from .util.html_tools import get_game_dict, get_html_page
-from .util.download_tools import get_dl_dict, get_dl_dict_nswgame
+from .util.io_tools import load_yml, save_yml
+from .util.html_tools import get_game_dict
 from .util.igdb_tools import IGDBClient, filter_game_dict, DEFAULT_MIN_RATING
 from .scraper.scraper import CartDL
 
@@ -23,6 +22,7 @@ regex_config = load_yml(os.path.join(MOD_DIR, "configs", "regex.yml"))
 IGDBClient.load_precache()
 
 _game_dict = None
+_download_state = {"running": False, "current": 0, "total": 0, "game": "", "log": []}
 _server_start_time = time.time()
 
 
@@ -87,16 +87,12 @@ async def api_games():
 @app.post("/api/games/refresh")
 async def api_refresh(request: Request):
     global _game_dict
-    cfg = get_user_config()
-    source_url = cfg.get("source_url", "https://nxbrew.net")
 
     async def generate():
         yield {"event": "status", "data": "scraping"}
-        _game_dict = get_game_dict(general_config, regex_config, source_url)
+        _game_dict = get_game_dict(general_config, regex_config, get_user_config().get("source_url", "https://nxbrew.net"))
         yield {"event": "status", "data": json.dumps({"scraped": len(_game_dict)})}
-
         yield {"event": "status", "data": "enriching"}
-        # Reload precache
         IGDBClient.load_precache()
         yield {"event": "status", "data": "done"}
 
@@ -105,34 +101,40 @@ async def api_refresh(request: Request):
 
 @app.post("/api/download")
 async def api_download(request: Request):
+    global _download_state
     body = await request.json()
     game_urls = body.get("games", [])
     if not game_urls:
         raise HTTPException(400, "No games specified")
+    if _download_state["running"]:
+        raise HTTPException(409, "Download already in progress")
 
+    _download_state = {"running": True, "current": 0, "total": len(game_urls), "game": "", "log": []}
     cfg = get_user_config()
 
-    async def generate():
+    def worker():
+        global _download_state
         for i, url in enumerate(game_urls):
             game_name = url.split("/")[-2].replace("-", " ").title()
-            yield {"event": "log", "data": f"Downloading: {game_name}"}
-
+            _download_state["log"].append(f"[{i+1}/{len(game_urls)}] {game_name}")
+            _download_state["current"] = i + 1
+            _download_state["game"] = game_name
             try:
-                nx = CartDL(
-                    to_download={game_name: url},
-                    user_config=cfg,
-                )
-                # Run in thread to avoid blocking
-                thread = threading.Thread(target=nx.run)
-                thread.start()
-                thread.join(timeout=3600)
-                yield {"event": "progress", "data": json.dumps({"current": i + 1, "total": len(game_urls), "game": game_name, "status": "complete"})}
+                nx = CartDL(to_download={game_name: url}, user_config=dict(cfg, log_dir=None))
+                nx.run()
+                nx.logger.close()
+                _download_state["log"].append(f"  OK: {game_name}")
             except Exception as e:
-                yield {"event": "log", "data": f"Error: {game_name}: {str(e)}"}
+                _download_state["log"].append(f"  FAIL: {str(e)[:120]}")
+        _download_state["running"] = False
 
-        yield {"event": "status", "data": "done"}
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"status": "started", "total": len(game_urls)})
 
-    return EventSourceResponse(generate())
+
+@app.get("/api/download/status")
+async def api_download_status():
+    return JSONResponse(_download_state)
 
 
 @app.get("/api/config")

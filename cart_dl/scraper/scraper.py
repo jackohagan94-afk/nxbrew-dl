@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import myjdapi
 import numpy as np
 from pathvalidate import sanitize_filename
+from curl_cffi import requests as cffi_req
 
 import cart_dl
 from ..util import (
@@ -20,6 +21,7 @@ from ..util import (
     get_thumb_url,
     get_dl_dict,
     get_dl_dict_nswgame,
+    get_dl_dict_switchroms,
     bypass_ouo,
     bypass_1link,
 )
@@ -131,7 +133,7 @@ class CartDL:
         self.user_cache_file = user_cache_file
 
         if logger is None:
-            logger = CartDLLogger(log_level="INFO")
+            logger = CartDLLogger(log_level="INFO", log_dir=self.user_config.get("log_dir", "log"))
         self.logger = logger
 
         # Set up JDownloader
@@ -294,13 +296,15 @@ class CartDL:
         except ValueError:
             if "nswgame.com" in url:
                 dl_dict = get_dl_dict_nswgame(soup, dl_sites, self.dl_mappings)
+            elif "switch-roms.com" in url:
+                dl_dict = get_dl_dict_switchroms(soup, url, dl_sites, self.dl_mappings)
             else:
-                raise
+                self.logger.warning(f"No download links found on page for {name}")
+                return False
+        if dl_dict is None or len(dl_dict) == 0:
+            self.logger.warning(f"No releases found for {name}")
+            return False
         n_releases = len(dl_dict)
-
-        if n_releases == 0:
-            raise ValueError("No releases found")
-
         self.logger.info(f"Found {n_releases} release(s):")
 
         for release in dl_dict:
@@ -493,7 +497,17 @@ class CartDL:
                 if dl_key not in self.user_cache[url]:
                     self.user_cache[url][dl_key] = []
 
-                # Loop over items in the list
+                # Loop over items in the list - consolidate per-site entries
+                consolidated = {}
+                for dl_info in dl_dict[dl_key]:
+                    for site, links in dl_info.items():
+                        if site != "full_name":
+                            if site not in consolidated:
+                                consolidated[site] = []
+                            consolidated[site].extend(links)
+                if consolidated:
+                    dl_dict[dl_key] = [{"full_name": dl_key_clean, **consolidated}]
+
                 for dl_info in dl_dict[dl_key]:
 
                     if dl_info["full_name"] in self.user_cache[url][dl_key]:
@@ -590,9 +604,8 @@ class CartDL:
         """Grab links and download through JDownloader
 
         Will look through download sites in priority order,
-        bypassing shortened links if required and checking
-        everything's online. Then, will download, extract,
-        and clean up at the end
+        checking links are alive before adding, then download,
+        extract, and clean up at the end
 
         Args:
             dl_dict (dict): Dictionary of download files
@@ -603,123 +616,87 @@ class CartDL:
 
         package_id = None
         dl_site = None
+        alive_links = []  # Aggregate alive links from all sites
 
-        # Loop over download sites, hit the first one we find
+        # Loop over download sites, collect alive links
         for dl_site in self.general_config["dl_sites"]:
 
             if dl_site in self.general_config["dl_sites_no_jdownload"]:
-                self.logger.info(f"JDownloader does not support {dl_site}, skipping")
                 continue
 
-            if dl_site in dl_dict:
-                dl_links = dl_dict[dl_site]
-                self.logger.info(f"\t\tTrying {dl_site}:")
+            if dl_site not in dl_dict:
+                continue
 
-                for d in dl_links:
+            dl_links = dl_dict[dl_site]
+            self.logger.info(f"\t\tTrying {dl_site}: {len(dl_links)} link(s)")
 
-                    # Redact the link
-                    self.logger.update_redact_filter(d)
+            for d in dl_links:
+                self.logger.update_redact_filter(d)
 
-                    self.logger.info(f"\t\t\tLink: {d}")
-                    if "ouo" in d:
-                        self.logger.info(
-                            f"\t\t\t\t{d} detected as OUO shortened link. Will bypass"
-                        )
+                if "ouo" in d:
+                    try:
                         d_final = bypass_ouo(d, logger=self.logger)
-                    elif "1link" in d:
-                        self.logger.info(
-                            f"\t\t\t\t{d} detected as 1link shortened link. Will bypass"
-                        )
+                    except Exception as e:
+                        self.logger.warning(f"\t\t\tOUO bypass failed: {e}")
+                        continue
+                elif "1link" in d:
+                    try:
                         d_final = bypass_1link(d, logger=self.logger)
-                    else:
-                        d_final = copy.deepcopy(d)
+                    except Exception as e:
+                        self.logger.warning(f"\t\t\t1link bypass failed: {e}")
+                        continue
+                else:
+                    d_final = d
 
-                    # Redact the link
-                    self.logger.update_redact_filter(d_final)
-
-                    self.logger.info(f"\t\t\t\tAdding {d_final} to JDownloader")
-                    self.jd_device.linkgrabber.add_links(
-                        [
-                            {
-                                "autostart": False,
-                                "links": d_final,
-                                "destinationFolder": out_dir,
-                                "packageName": package_name,
-                            }
-                        ]
-                    )
-
-                # Check that the package has been added
-                package_added = False
-                while not package_added:
-                    time.sleep(1)
-
-                    package_list = self.jd_device.linkgrabber.query_packages()
-
-                    for p in package_list:
-
-                        if package_added:
-                            continue
-
-                        if p["name"] == package_name:
-                            package_added = True
-
-                # Check that all links have been added
-                all_added = False
-                while not all_added:
-                    time.sleep(1)
-                    package_list = self.jd_device.linkgrabber.query_packages()
-
-                    found_package = False
-                    child_count = None
-
-                    for p in package_list:
-
-                        if found_package:
-                            continue
-
-                        if p["name"] == package_name:
-                            child_count = p["childCount"]
-                            found_package = True
-
-                    if child_count == len(dl_links):
-                        all_added = True
-
-                # Next up, we want to do a check that all the files are online and happy
-                package_list = self.jd_device.linkgrabber.query_packages()
-                for p in package_list:
-                    if p["name"] == package_name:
-                        package_id = p["uuid"]
-                        break
-
-                if package_id is None:
-                    raise ValueError(
-                        f"Did not find associated package with name {package_name}"
-                    )
-
-                file_list = self.jd_device.linkgrabber.query_links()
-                any_offline = False
-                for f in file_list:
-                    if f["packageUUID"] == package_id:
-                        if not f["availability"] == "ONLINE":
-                            self.logger.warning(
-                                "\t\t\tLink(s) offline, will remove and try with another download client"
-                            )
-                            any_offline = True
-                            break
-
-                if any_offline:
-                    self.jd_device.linkgrabber.remove_links(package_ids=[package_id])
+                # Quick liveness check
+                try:
+                    h = cffi_req.head(d_final, impersonate="chrome", timeout=10, allow_redirects=True)
+                    if h.status_code >= 400:
+                        self.logger.warning(f"\t\t\t{dl_site} link dead (HTTP {h.status_code}), skipping")
+                        continue
+                except Exception:
+                    self.logger.warning(f"\t\t\t{site} link unreachable, skipping")
                     continue
 
-                break
+                self.logger.update_redact_filter(d_final)
+                self.logger.info(f"\t\t\tAdding {d_final[:80]}")
+                alive_links.append(d_final)
 
-        if dl_site is None:
-            self.logger.warning("No supported download site found, skipping")
+        # If we found any alive links, add them all in one package
+        if alive_links:
+            self.logger.info(f"\t\tSending {len(alive_links)} alive links to JDownloader")
+            self.jd_device.linkgrabber.add_links([{
+                "autostart": False,
+                "links": "\n".join(alive_links),
+                "destinationFolder": out_dir,
+                "packageName": package_name,
+            }])
+
+            # Wait for package to appear
+            time.sleep(2)
+            package_list = self.jd_device.linkgrabber.query_packages()
+            for p in package_list:
+                if p["name"] == package_name:
+                    package_id = p["uuid"]
+                    break
+
+            if package_id is None:
+                self.logger.warning("\t\t\tPackage not created in JDownloader")
+                return True
+
+            # Check if links are online
+            file_list = self.jd_device.linkgrabber.query_links()
+            for f in file_list:
+                if f["packageUUID"] == package_id:
+                    if f["availability"] != "ONLINE":
+                        self.logger.warning(f"\t\t\tLink offline: {f['name'][:60]}")
+            self.logger.info(f"\t\t\tSuccess! {len(alive_links)} links queued")
+        else:
+            self.logger.warning("\t\tNo alive links found for any download site")
             return True
 
         if package_id is None:
-            self.logger.warning(f"No package was created (all providers may be unsupported)")
+            self.logger.warning("No package was created")
             return True
 
         # Finally, we need to pull the links out as well to move them
