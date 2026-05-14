@@ -10,11 +10,11 @@ import logredactor
 DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
 
-class NXBrewLogger(logging.Logger):
+class CartDLLogger(logging.Logger):
 
     def __init__(
         self,
-        name="NXBrew",
+        name="CartDL",
         log_level="INFO",
         log_dir="log",
         max_logs=9,
@@ -25,7 +25,7 @@ class NXBrewLogger(logging.Logger):
         save a log to file with sensitive info redacted
 
         Args:
-            name (str): The name of the logger. Defaults to "NXBrew".
+            name (str): The name of the logger. Defaults to "CartDL".
             log_level (str): Logging level. Defaults to "INFO"
             log_dir (str): The directory to save logs to. Defaults to "log"
             max_logs (int): The maximum number of logs to save. Defaults to 9

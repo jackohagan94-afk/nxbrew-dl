@@ -6,16 +6,20 @@ from bs4 import BeautifulSoup
 
 from .regex_tools import get_game_name, check_has_filetype, parse_languages
 
-# Known nxbrew domains and their preferred impersonation profiles
+# Known CartDL domains and their preferred impersonation profiles
 DOMAIN_IMPERSONATION = {
-    "nxbrew.me": "safari15_5",
-    "nxbrew.net": "chrome",
+    "CartDL.me": "safari15_5",
+    "CartDL.net": "chrome",
 }
 
 # Alternative domains with known game indices
 ALTERNATIVE_INDICES = [
     ("https://nxbrew.me", "games/"),
+    ("https://nswgame.com", "list-all-game-switch/"),
 ]
+
+# URL pattern used by nswgame for game pages
+NSWGAME_URL_PATTERN = "nintendo-switch-nsp-xci-nsz-download-free"
 
 
 def _get_impersonation(url):
@@ -60,6 +64,46 @@ def get_html_page(
         soup = BeautifulSoup(r, "html.parser")
 
     return soup
+
+
+def _parse_nswgame_index(soup, base_url, general_config, regex_config, game_dict):
+    """Parse nswgame.com list-all-game-switch page
+
+    Args:
+        soup (BeautifulSoup): Parsed page
+        base_url (str): Base URL for the site
+        general_config (dict): General configuration
+        regex_config (dict): Regex configuration
+        game_dict (dict): Existing game dict to merge into
+    """
+    nsp_xci_variations = regex_config["nsp_variations"] + regex_config["xci_variations"]
+
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if NSWGAME_URL_PATTERN not in href:
+            continue
+        long_name = a.get_text(strip=True)
+        if not long_name or long_name in general_config["forbidden_titles"]:
+            continue
+        if not href.startswith("http"):
+            href = urljoin(base_url, href)
+        if href in game_dict:
+            continue
+        short_name = get_game_name(long_name, nsp_xci_variations=nsp_xci_variations)
+        remaining_name = long_name.replace(short_name, "")
+        has_nsp = check_has_filetype(remaining_name, regex_config["nsp_variations"])
+        has_xci = check_has_filetype(remaining_name, regex_config["xci_variations"])
+        has_update = check_has_filetype(remaining_name, regex_config["update_variations"])
+        has_dlc = check_has_filetype(remaining_name, regex_config["dlc_variations"])
+        game_dict[href] = {
+            "long_name": long_name,
+            "short_name": short_name,
+            "url": href,
+            "has_nsp": has_nsp,
+            "has_xci": has_xci,
+            "has_update": has_update,
+            "has_dlc": has_dlc,
+        }
 
 
 def _parse_li_entries(soup, base_url, general_config, regex_config, game_dict):
@@ -161,22 +205,22 @@ def _parse_az_listing(soup, general_config, regex_config, game_dict):
 def get_game_dict(
     general_config,
     regex_config,
-    nxbrew_url,
+    CartDL_url,
 ):
     """Download the game index from primary and alternative domains
 
     Args:
         general_config (dict): General configuration
         regex_config (dict): Regex configuration
-        nxbrew_url (string): Primary NXBrew URL
+        CartDL_url (string): Primary CartDL URL
     """
 
     game_dict = {}
 
     nsp_xci_variations = regex_config["nsp_variations"] + regex_config["xci_variations"]
 
-    # 1. Try primary domain: {nxbrew_url}/game-index/ (AlphaListing format)
-    url = urljoin(nxbrew_url, "game-index/")
+    # 1. Try primary domain: {CartDL_url}/game-index/ (AlphaListing format)
+    url = urljoin(CartDL_url, "game-index/")
     game_html = get_html_page(url, cache_filename="game_index_primary.html")
 
     if not _parse_az_listing(game_html, general_config, regex_config, game_dict):
@@ -184,7 +228,7 @@ def get_game_dict(
         index = game_html.find("div", {"id": "easyindex-index"})
         if index is None:
             # Try li entries in entry-content
-            _parse_li_entries(game_html, nxbrew_url, general_config, regex_config, game_dict)
+            _parse_li_entries(game_html, CartDL_url, general_config, regex_config, game_dict)
         else:
             for item in index.find_all("li"):
                 long_name = item.text
@@ -213,7 +257,10 @@ def get_game_dict(
     for alt_domain, alt_path in ALTERNATIVE_INDICES:
         alt_url = urljoin(alt_domain, alt_path)
         alt_html = get_html_page(alt_url, cache_filename=f"game_index_alt_{urlparse(alt_domain).hostname}.html")
-        _parse_li_entries(alt_html, alt_domain, general_config, regex_config, game_dict)
+        if "nswgame" in alt_domain:
+            _parse_nswgame_index(alt_html, alt_domain, general_config, regex_config, game_dict)
+        else:
+            _parse_li_entries(alt_html, alt_domain, general_config, regex_config, game_dict)
 
     return game_dict
 

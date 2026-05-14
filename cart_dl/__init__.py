@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication
 from .gui import MainWindow
 
 
-def run_nxbrew_gui():
+def run_CartDL_gui():
     app = QApplication(sys.argv)
 
     window = MainWindow()
@@ -19,8 +19,8 @@ __version__ = version(__name__)
 
 __all__ = [
     "MainWindow",
-    "run_nxbrew_gui",
+    "run_CartDL_gui",
 ]
 
 if __name__ == "__main__":
-    run_nxbrew_gui()
+    run_CartDL_gui()

@@ -4,7 +4,7 @@ import os
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
-import nxbrew_dl
+import cart_dl
 from .gui_utils import set_ordered_list, add_item_to_list
 from .layout_regions_languages import Ui_FormRegionsLanguages
 from ..util import load_yml
@@ -18,7 +18,7 @@ class RegionLanguageWindow(QWidget):
         general_config=None,
         parent=None,
     ):
-        """NXBrew-dl region/language window
+        """cart-dl region/language window
 
         This part controls the advanced region/language options,
         where order is important and there are quite a few options!
@@ -36,7 +36,7 @@ class RegionLanguageWindow(QWidget):
         self.ui.setupUi(self)
 
         # Read in the general config
-        self.mod_dir = os.path.dirname(nxbrew_dl.__file__)
+        self.mod_dir = os.path.dirname(cart_dl.__file__)
         general_config_filename = os.path.join(self.mod_dir, "configs", "general.yml")
         if general_config is None:
             general_config = load_yml(general_config_filename)

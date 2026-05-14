@@ -95,8 +95,8 @@ class Ui_About(object):
     def retranslateUi(self, About):
         About.setWindowTitle(QCoreApplication.translate("About", u"About", None))
         self.labelIcon.setText("")
-        self.aboutLargeTitle.setText(QCoreApplication.translate("About", u"NXBrew DL", None))
+        self.aboutLargeTitle.setText(QCoreApplication.translate("About", u"CartDL DL", None))
         self.aboutVersion.setText("")
-        self.aboutURL.setText(QCoreApplication.translate("About", u"<a href=\"https://github.com/bbtufty/nxbrew-dl\">https://github.com/bbtufty/nxbrew-dl</a>", None))
+        self.aboutURL.setText(QCoreApplication.translate("About", u"<a href=\"https://github.com/bbtufty/cart-dl\">https://github.com/bbtufty/cart-dl</a>", None))
     # retranslateUi
 

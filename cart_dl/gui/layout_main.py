@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'layout_nxbrew_dl.ui'
+## Form generated from reading UI file 'layout_cart_dl.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.0
 ##
@@ -23,24 +23,24 @@ from PySide6.QtWidgets import (QAbstractItemView, QAbstractScrollArea, QApplicat
     QSizePolicy, QSpacerItem, QStatusBar, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget)
 
-class Ui_nxbrew_dl(object):
-    def setupUi(self, nxbrew_dl):
-        if not nxbrew_dl.objectName():
-            nxbrew_dl.setObjectName(u"nxbrew_dl")
-        nxbrew_dl.resize(1187, 920)
-        self.actionDocumentation = QAction(nxbrew_dl)
+class Ui_cart_dl(object):
+    def setupUi(self, cart_dl):
+        if not cart_dl.objectName():
+            cart_dl.setObjectName(u"cart_dl")
+        cart_dl.resize(1187, 920)
+        self.actionDocumentation = QAction(cart_dl)
         self.actionDocumentation.setObjectName(u"actionDocumentation")
         icon = QIcon(QIcon.fromTheme(QIcon.ThemeIcon.GoHome))
         self.actionDocumentation.setIcon(icon)
-        self.actionIssues = QAction(nxbrew_dl)
+        self.actionIssues = QAction(cart_dl)
         self.actionIssues.setObjectName(u"actionIssues")
         icon1 = QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DialogWarning))
         self.actionIssues.setIcon(icon1)
-        self.actionAbout = QAction(nxbrew_dl)
+        self.actionAbout = QAction(cart_dl)
         self.actionAbout.setObjectName(u"actionAbout")
         icon2 = QIcon(QIcon.fromTheme(QIcon.ThemeIcon.HelpAbout))
         self.actionAbout.setIcon(icon2)
-        self.centralwidget = QWidget(nxbrew_dl)
+        self.centralwidget = QWidget(cart_dl)
         self.centralwidget.setObjectName(u"centralwidget")
         self.verticalLayout = QVBoxLayout(self.centralwidget)
         self.verticalLayout.setObjectName(u"verticalLayout")
@@ -52,20 +52,20 @@ class Ui_nxbrew_dl(object):
 
         self.verticalLayoutConfig.addItem(self.verticalSpacer_7)
 
-        self.labelNXBrewURL = QLabel(self.centralwidget)
-        self.labelNXBrewURL.setObjectName(u"labelNXBrewURL")
+        self.labelCartDLURL = QLabel(self.centralwidget)
+        self.labelCartDLURL.setObjectName(u"labelCartDLURL")
 
-        self.verticalLayoutConfig.addWidget(self.labelNXBrewURL)
+        self.verticalLayoutConfig.addWidget(self.labelCartDLURL)
 
-        self.lineEditNXBrewURL = QLineEdit(self.centralwidget)
-        self.lineEditNXBrewURL.setObjectName(u"lineEditNXBrewURL")
+        self.lineEditCartDLURL = QLineEdit(self.centralwidget)
+        self.lineEditCartDLURL.setObjectName(u"lineEditCartDLURL")
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.lineEditNXBrewURL.sizePolicy().hasHeightForWidth())
-        self.lineEditNXBrewURL.setSizePolicy(sizePolicy)
+        sizePolicy.setHeightForWidth(self.lineEditCartDLURL.sizePolicy().hasHeightForWidth())
+        self.lineEditCartDLURL.setSizePolicy(sizePolicy)
 
-        self.verticalLayoutConfig.addWidget(self.lineEditNXBrewURL)
+        self.verticalLayoutConfig.addWidget(self.lineEditCartDLURL)
 
         self.verticalSpacer = QSpacerItem(330, 13, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
@@ -148,7 +148,7 @@ class Ui_nxbrew_dl(object):
         self.verticalLayoutConfig.addWidget(self.labelGameDLOptions)
 
         self.radioButtonPreferNSP = QRadioButton(self.centralwidget)
-        self.buttonGroupPreferNSPXCI = QButtonGroup(nxbrew_dl)
+        self.buttonGroupPreferNSPXCI = QButtonGroup(cart_dl)
         self.buttonGroupPreferNSPXCI.setObjectName(u"buttonGroupPreferNSPXCI")
         self.buttonGroupPreferNSPXCI.addButton(self.radioButtonPreferNSP)
         self.radioButtonPreferNSP.setObjectName(u"radioButtonPreferNSP")
@@ -382,134 +382,134 @@ class Ui_nxbrew_dl(object):
 
         self.verticalLayout.addLayout(self.verticalLayoutBottomButtons)
 
-        nxbrew_dl.setCentralWidget(self.centralwidget)
-        self.menubar = QMenuBar(nxbrew_dl)
+        cart_dl.setCentralWidget(self.centralwidget)
+        self.menubar = QMenuBar(cart_dl)
         self.menubar.setObjectName(u"menubar")
         self.menubar.setGeometry(QRect(0, 0, 1187, 33))
         self.menuHelp = QMenu(self.menubar)
         self.menuHelp.setObjectName(u"menuHelp")
-        nxbrew_dl.setMenuBar(self.menubar)
-        self.statusbar = QStatusBar(nxbrew_dl)
+        cart_dl.setMenuBar(self.menubar)
+        self.statusbar = QStatusBar(cart_dl)
         self.statusbar.setObjectName(u"statusbar")
-        nxbrew_dl.setStatusBar(self.statusbar)
+        cart_dl.setStatusBar(self.statusbar)
 
         self.menubar.addAction(self.menuHelp.menuAction())
         self.menuHelp.addAction(self.actionDocumentation)
         self.menuHelp.addAction(self.actionIssues)
         self.menuHelp.addAction(self.actionAbout)
 
-        self.retranslateUi(nxbrew_dl)
+        self.retranslateUi(cart_dl)
 
-        QMetaObject.connectSlotsByName(nxbrew_dl)
+        QMetaObject.connectSlotsByName(cart_dl)
     # setupUi
 
-    def retranslateUi(self, nxbrew_dl):
-        nxbrew_dl.setWindowTitle(QCoreApplication.translate("nxbrew_dl", u"NXBrew-dl", None))
-        self.actionDocumentation.setText(QCoreApplication.translate("nxbrew_dl", u"Documentation", None))
+    def retranslateUi(self, cart_dl):
+        cart_dl.setWindowTitle(QCoreApplication.translate("cart_dl", u"cart-dl", None))
+        self.actionDocumentation.setText(QCoreApplication.translate("cart_dl", u"Documentation", None))
 #if QT_CONFIG(statustip)
-        self.actionDocumentation.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"View online documentation", None))
+        self.actionDocumentation.setStatusTip(QCoreApplication.translate("cart_dl", u"View online documentation", None))
 #endif // QT_CONFIG(statustip)
-        self.actionIssues.setText(QCoreApplication.translate("nxbrew_dl", u"Issues", None))
+        self.actionIssues.setText(QCoreApplication.translate("cart_dl", u"Issues", None))
 #if QT_CONFIG(statustip)
-        self.actionIssues.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"Open a GitHub issue", None))
+        self.actionIssues.setStatusTip(QCoreApplication.translate("cart_dl", u"Open a GitHub issue", None))
 #endif // QT_CONFIG(statustip)
-        self.actionAbout.setText(QCoreApplication.translate("nxbrew_dl", u"About", None))
+        self.actionAbout.setText(QCoreApplication.translate("cart_dl", u"About", None))
 #if QT_CONFIG(statustip)
-        self.actionAbout.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"See About page", None))
+        self.actionAbout.setStatusTip(QCoreApplication.translate("cart_dl", u"See About page", None))
 #endif // QT_CONFIG(statustip)
-        self.labelNXBrewURL.setText(QCoreApplication.translate("nxbrew_dl", u"NXBrew URL:", None))
+        self.labelCartDLURL.setText(QCoreApplication.translate("cart_dl", u"CartDL URL:", None))
 #if QT_CONFIG(statustip)
-        self.lineEditNXBrewURL.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"Input NXBrew URL here. This program will not provide this.", None))
+        self.lineEditCartDLURL.setStatusTip(QCoreApplication.translate("cart_dl", u"Input CartDL URL here. This program will not provide this.", None))
 #endif // QT_CONFIG(statustip)
-        self.lineEditNXBrewURL.setInputMask("")
-        self.lineEditNXBrewURL.setText("")
-        self.labelDownloadDir.setText(QCoreApplication.translate("nxbrew_dl", u"Download directory:", None))
+        self.lineEditCartDLURL.setInputMask("")
+        self.lineEditCartDLURL.setText("")
+        self.labelDownloadDir.setText(QCoreApplication.translate("cart_dl", u"Download directory:", None))
 #if QT_CONFIG(statustip)
-        self.lineEditDownloadDir.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"Where to download files to", None))
+        self.lineEditDownloadDir.setStatusTip(QCoreApplication.translate("cart_dl", u"Where to download files to", None))
 #endif // QT_CONFIG(statustip)
-        self.lineEditDownloadDir.setPlaceholderText(QCoreApplication.translate("nxbrew_dl", u"/path/to/downloads", None))
-        self.pushButtonDownloadDir.setText(QCoreApplication.translate("nxbrew_dl", u"Browse", None))
-        self.labelJDownloaderDevice.setText(QCoreApplication.translate("nxbrew_dl", u"JDownloader device name:", None))
+        self.lineEditDownloadDir.setPlaceholderText(QCoreApplication.translate("cart_dl", u"/path/to/downloads", None))
+        self.pushButtonDownloadDir.setText(QCoreApplication.translate("cart_dl", u"Browse", None))
+        self.labelJDownloaderDevice.setText(QCoreApplication.translate("cart_dl", u"JDownloader device name:", None))
 #if QT_CONFIG(statustip)
-        self.lineEditJDownloaderDevice.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"Device name for JDownloader", None))
+        self.lineEditJDownloaderDevice.setStatusTip(QCoreApplication.translate("cart_dl", u"Device name for JDownloader", None))
 #endif // QT_CONFIG(statustip)
-        self.labelJDownloaderUser.setText(QCoreApplication.translate("nxbrew_dl", u"JDownloader username:", None))
+        self.labelJDownloaderUser.setText(QCoreApplication.translate("cart_dl", u"JDownloader username:", None))
 #if QT_CONFIG(statustip)
-        self.lineEditJDownloaderUser.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"JDownloader username", None))
+        self.lineEditJDownloaderUser.setStatusTip(QCoreApplication.translate("cart_dl", u"JDownloader username", None))
 #endif // QT_CONFIG(statustip)
-        self.labelJDownloaderPass.setText(QCoreApplication.translate("nxbrew_dl", u"JDownloader password:", None))
+        self.labelJDownloaderPass.setText(QCoreApplication.translate("cart_dl", u"JDownloader password:", None))
 #if QT_CONFIG(statustip)
-        self.lineEditJDownloaderPass.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"JDownloader password", None))
+        self.lineEditJDownloaderPass.setStatusTip(QCoreApplication.translate("cart_dl", u"JDownloader password", None))
 #endif // QT_CONFIG(statustip)
         self.lineEditJDownloaderPass.setText("")
-        self.labelGameDLOptions.setText(QCoreApplication.translate("nxbrew_dl", u"Base download options:", None))
-        self.radioButtonPreferNSP.setText(QCoreApplication.translate("nxbrew_dl", u"Prefer NSPs", None))
-        self.radioButtonPreferXCI.setText(QCoreApplication.translate("nxbrew_dl", u"Prefer XCIs", None))
-        self.labelGameAdditionalFiles.setText(QCoreApplication.translate("nxbrew_dl", u"Additional files:", None))
+        self.labelGameDLOptions.setText(QCoreApplication.translate("cart_dl", u"Base download options:", None))
+        self.radioButtonPreferNSP.setText(QCoreApplication.translate("cart_dl", u"Prefer NSPs", None))
+        self.radioButtonPreferXCI.setText(QCoreApplication.translate("cart_dl", u"Prefer XCIs", None))
+        self.labelGameAdditionalFiles.setText(QCoreApplication.translate("cart_dl", u"Additional files:", None))
 #if QT_CONFIG(statustip)
-        self.checkBoxDownloadUpdates.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"If available, will download update files", None))
+        self.checkBoxDownloadUpdates.setStatusTip(QCoreApplication.translate("cart_dl", u"If available, will download update files", None))
 #endif // QT_CONFIG(statustip)
-        self.checkBoxDownloadUpdates.setText(QCoreApplication.translate("nxbrew_dl", u"Download Updates", None))
+        self.checkBoxDownloadUpdates.setText(QCoreApplication.translate("cart_dl", u"Download Updates", None))
 #if QT_CONFIG(statustip)
-        self.checkBoxDownloadDLC.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"If available, will download DLCs", None))
+        self.checkBoxDownloadDLC.setStatusTip(QCoreApplication.translate("cart_dl", u"If available, will download DLCs", None))
 #endif // QT_CONFIG(statustip)
-        self.checkBoxDownloadDLC.setText(QCoreApplication.translate("nxbrew_dl", u"Download DLCs", None))
-        self.labelGameAdvancedOptions.setText(QCoreApplication.translate("nxbrew_dl", u"Advanced options:", None))
+        self.checkBoxDownloadDLC.setText(QCoreApplication.translate("cart_dl", u"Download DLCs", None))
+        self.labelGameAdvancedOptions.setText(QCoreApplication.translate("cart_dl", u"Advanced options:", None))
 #if QT_CONFIG(statustip)
-        self.pushButtonRegionLanguage.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"Open region/language preferences", None))
+        self.pushButtonRegionLanguage.setStatusTip(QCoreApplication.translate("cart_dl", u"Open region/language preferences", None))
 #endif // QT_CONFIG(statustip)
-        self.pushButtonRegionLanguage.setText(QCoreApplication.translate("nxbrew_dl", u"Region/Language Preferences", None))
+        self.pushButtonRegionLanguage.setText(QCoreApplication.translate("cart_dl", u"Region/Language Preferences", None))
 #if QT_CONFIG(statustip)
-        self.checkBoxDryRun.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"If checked, will not download anything", None))
+        self.checkBoxDryRun.setStatusTip(QCoreApplication.translate("cart_dl", u"If checked, will not download anything", None))
 #endif // QT_CONFIG(statustip)
-        self.checkBoxDryRun.setText(QCoreApplication.translate("nxbrew_dl", u"Dry Run", None))
-        self.labelDiscordURL.setText(QCoreApplication.translate("nxbrew_dl", u"Discord Webhook URL:", None))
+        self.checkBoxDryRun.setText(QCoreApplication.translate("cart_dl", u"Dry Run", None))
+        self.labelDiscordURL.setText(QCoreApplication.translate("cart_dl", u"Discord Webhook URL:", None))
 #if QT_CONFIG(statustip)
-        self.lineEditDiscordURL.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"Webhook URL for Discord", None))
+        self.lineEditDiscordURL.setStatusTip(QCoreApplication.translate("cart_dl", u"Webhook URL for Discord", None))
 #endif // QT_CONFIG(statustip)
         self.lineEditDiscordURL.setText("")
-        self.labelSearch.setText(QCoreApplication.translate("nxbrew_dl", u"Search:", None))
-        self.pushButtonRefresh.setText(QCoreApplication.translate("nxbrew_dl", u"Refresh", None))
+        self.labelSearch.setText(QCoreApplication.translate("cart_dl", u"Search:", None))
+        self.pushButtonRefresh.setText(QCoreApplication.translate("cart_dl", u"Refresh", None))
         ___qtablewidgetitem = self.tableGames.horizontalHeaderItem(0)
-        ___qtablewidgetitem.setText(QCoreApplication.translate("nxbrew_dl", u"Name", None));
+        ___qtablewidgetitem.setText(QCoreApplication.translate("cart_dl", u"Name", None));
 #if QT_CONFIG(tooltip)
-        ___qtablewidgetitem.setToolTip(QCoreApplication.translate("nxbrew_dl", u"Game Name (double-click to open URL)", None));
+        ___qtablewidgetitem.setToolTip(QCoreApplication.translate("cart_dl", u"Game Name (double-click to open URL)", None));
 #endif // QT_CONFIG(tooltip)
         ___qtablewidgetitem1 = self.tableGames.horizontalHeaderItem(1)
-        ___qtablewidgetitem1.setText(QCoreApplication.translate("nxbrew_dl", u"DL?", None));
+        ___qtablewidgetitem1.setText(QCoreApplication.translate("cart_dl", u"DL?", None));
 #if QT_CONFIG(tooltip)
-        ___qtablewidgetitem1.setToolTip(QCoreApplication.translate("nxbrew_dl", u"Download Game?", None));
+        ___qtablewidgetitem1.setToolTip(QCoreApplication.translate("cart_dl", u"Download Game?", None));
 #endif // QT_CONFIG(tooltip)
         ___qtablewidgetitem2 = self.tableGames.horizontalHeaderItem(2)
-        ___qtablewidgetitem2.setText(QCoreApplication.translate("nxbrew_dl", u"NSP", None));
+        ___qtablewidgetitem2.setText(QCoreApplication.translate("cart_dl", u"NSP", None));
 #if QT_CONFIG(tooltip)
-        ___qtablewidgetitem2.setToolTip(QCoreApplication.translate("nxbrew_dl", u"Game has NSP", None));
+        ___qtablewidgetitem2.setToolTip(QCoreApplication.translate("cart_dl", u"Game has NSP", None));
 #endif // QT_CONFIG(tooltip)
         ___qtablewidgetitem3 = self.tableGames.horizontalHeaderItem(3)
-        ___qtablewidgetitem3.setText(QCoreApplication.translate("nxbrew_dl", u"XCI", None));
+        ___qtablewidgetitem3.setText(QCoreApplication.translate("cart_dl", u"XCI", None));
 #if QT_CONFIG(tooltip)
-        ___qtablewidgetitem3.setToolTip(QCoreApplication.translate("nxbrew_dl", u"Game has XCI", None));
+        ___qtablewidgetitem3.setToolTip(QCoreApplication.translate("cart_dl", u"Game has XCI", None));
 #endif // QT_CONFIG(tooltip)
         ___qtablewidgetitem4 = self.tableGames.horizontalHeaderItem(4)
-        ___qtablewidgetitem4.setText(QCoreApplication.translate("nxbrew_dl", u"Updates", None));
+        ___qtablewidgetitem4.setText(QCoreApplication.translate("cart_dl", u"Updates", None));
 #if QT_CONFIG(tooltip)
-        ___qtablewidgetitem4.setToolTip(QCoreApplication.translate("nxbrew_dl", u"Game has Updates", None));
+        ___qtablewidgetitem4.setToolTip(QCoreApplication.translate("cart_dl", u"Game has Updates", None));
 #endif // QT_CONFIG(tooltip)
         ___qtablewidgetitem5 = self.tableGames.horizontalHeaderItem(5)
-        ___qtablewidgetitem5.setText(QCoreApplication.translate("nxbrew_dl", u"DLC", None));
+        ___qtablewidgetitem5.setText(QCoreApplication.translate("cart_dl", u"DLC", None));
 #if QT_CONFIG(tooltip)
-        ___qtablewidgetitem5.setToolTip(QCoreApplication.translate("nxbrew_dl", u"Game has DLC", None));
+        ___qtablewidgetitem5.setToolTip(QCoreApplication.translate("cart_dl", u"Game has DLC", None));
 #endif // QT_CONFIG(tooltip)
         self.labelProgressBar.setText("")
-        self.progressBar.setFormat(QCoreApplication.translate("nxbrew_dl", u"%p%", None))
+        self.progressBar.setFormat(QCoreApplication.translate("cart_dl", u"%p%", None))
 #if QT_CONFIG(statustip)
-        self.pushButtonExit.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"Exit NXBrew-dl", None))
+        self.pushButtonExit.setStatusTip(QCoreApplication.translate("cart_dl", u"Exit cart-dl", None))
 #endif // QT_CONFIG(statustip)
-        self.pushButtonExit.setText(QCoreApplication.translate("nxbrew_dl", u"Exit", None))
+        self.pushButtonExit.setText(QCoreApplication.translate("cart_dl", u"Exit", None))
 #if QT_CONFIG(statustip)
-        self.pushButtonRun.setStatusTip(QCoreApplication.translate("nxbrew_dl", u"Run NXBrew-dl", None))
+        self.pushButtonRun.setStatusTip(QCoreApplication.translate("cart_dl", u"Run cart-dl", None))
 #endif // QT_CONFIG(statustip)
-        self.pushButtonRun.setText(QCoreApplication.translate("nxbrew_dl", u"Run", None))
-        self.menuHelp.setTitle(QCoreApplication.translate("nxbrew_dl", u"Help", None))
+        self.pushButtonRun.setText(QCoreApplication.translate("cart_dl", u"Run", None))
+        self.menuHelp.setTitle(QCoreApplication.translate("cart_dl", u"Help", None))
     # retranslateUi
 

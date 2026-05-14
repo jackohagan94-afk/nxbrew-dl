@@ -2,9 +2,9 @@ import requests
 
 
 def check_github_version():
-    """Check NXBrew-dl version on GitHub. Returns version and associated URL"""
+    """Check cart-dl version on GitHub. Returns version and associated URL"""
 
-    url = "https://api.github.com/repos/bbtufty/nxbrew-dl/releases/latest"
+    url = "https://api.github.com/repos/bbtufty/cart-dl/releases/latest"
     r = requests.get(url)
 
     json = r.json()

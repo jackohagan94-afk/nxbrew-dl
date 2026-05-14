@@ -76,6 +76,84 @@ def get_dl_dict(
     if found_tag is None:
         raise ValueError("No download links found")
 
+
+def get_dl_dict_nswgame(soup, dl_sites, dl_mappings):
+    """Parse download links from nswgame.com game pages
+
+    nswgame pages have links scattered in <a> tags rather than structured
+    in strong/p elements. We extract all links to known hosts and categorize
+    by file type (NSP/XCI/Update/DLC) based on URL text patterns.
+
+    Args:
+        soup (bs4.BeautifulSoup): soup object to parse
+        dl_sites (list): List of download sites
+        dl_mappings (dict): Dictionary of download type mappings
+    """
+    dl_dict = {"release_1": {"regions": ["All"], "languages": ["All"]}}
+
+    # Known file host domains
+    host_patterns = {
+        "1Fichier": ["1fichier"],
+        "FreeDL": ["frdl"],
+        "MegaUp": ["megaup"],
+        "GoFile": ["gofile"],
+        "DataNodes": ["datanodes"],
+        "HexLoad": ["hexload"],
+        "HexUpload": ["hexupload"],
+        "MixDrop": ["mixdrop"],
+    }
+
+    entry = soup.find("div", class_="entry-content") or soup.find("article")
+    if entry is None:
+        entry = soup
+
+    for a in entry.find_all("a", href=True):
+        href = a["href"]
+        text = a.get_text(strip=True).lower()
+
+        # Skip social media, comments, login links
+        if any(s in href.lower() for s in ["twitter.com", "facebook.com", "#comment", "wp-login", "share="]):
+            continue
+
+        url_lower = href.lower()
+        for site_name, patterns in host_patterns.items():
+            if any(p in url_lower for p in patterns):
+                # Determine file type from the URL or surrounding text
+                url_text = href + " " + text
+                dl_key = None
+                if "dlc" in url_text or "dlc" in url_text:
+                    dl_key = "dlc"
+                elif "update" in url_text:
+                    dl_key = "update"
+                elif "xci" in url_text and "nsp" not in url_text:
+                    dl_key = "base_game_xci"
+                elif "nsp" in url_text:
+                    dl_key = "base_game_nsp"
+                else:
+                    dl_key = "base_game_nsp"
+
+                if dl_key not in dl_dict["release_1"]:
+                    dl_dict["release_1"][dl_key] = []
+                
+                # Check if we already have this link
+                existing = False
+                for entry_info in dl_dict["release_1"].get(dl_key, []):
+                    if site_name in entry_info:
+                        if href in entry_info[site_name]:
+                            existing = True
+                            break
+                if existing:
+                    break
+
+                dl_info = {
+                    "full_name": f"{dl_key.replace('_',' ').title()}",
+                    site_name: [href],
+                }
+                dl_dict["release_1"][dl_key].append(dl_info)
+                break
+
+    return dl_dict
+
     tag = found_tag.find_next("p")
 
     # Keep looping over to keep finding regions
@@ -400,7 +478,7 @@ def bypass_ouo(
         raise ValueError("Max retries exceeded!")
 
     if impersonate is None:
-        impersonate = random.choice(["chrome", "safari", "edge"])
+        impersonate = random.choice(["chrome120", "safari15_5", "edge101"])
 
     client = cffi_requests.Session()
     client.headers.update(
@@ -429,10 +507,11 @@ def bypass_ouo(
             print(f"Received status code {status_code}. Waiting then retrying")
 
         time.sleep(10)
+        alternate_imp = random.choice(["chrome120", "safari15_5", "edge101"])
         bypassed_url = bypass_ouo(
             url,
             logger=logger,
-            impersonate=impersonate,
+            impersonate=alternate_imp,
             n_retry=n_retry + 1,
         )
         return bypassed_url
@@ -530,7 +609,7 @@ def bypass_1link(
         raise ValueError("Max retries exceeded!")
 
     if impersonate is None:
-        impersonate = random.choice(["chrome", "safari", "edge"])
+        impersonate = random.choice(["chrome120", "safari15_5", "edge101"])
 
     client = cffi_requests.Session()
     client.headers.update(

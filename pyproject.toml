@@ -1,8 +1,8 @@
 [project]
 
-name = "nxbrew_dl"
-version = "0.7.3"
-description = "NXBrew Downloader"
+name = "cart-dl"
+version = "0.8.0"
+description = "Cart-dl: Switch ROM downloader with IGDB quality filtering"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
@@ -46,7 +46,7 @@ dependencies = [
 ]
 
 [project.scripts]
-nxbrew-dl = "nxbrew_dl:run_nxbrew_gui"
+cart-dl = "cart_dl:run_CartDL_gui"
 
 [project.optional-dependencies]
 docs = [

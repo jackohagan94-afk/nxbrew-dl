@@ -3,14 +3,14 @@ import os
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QDialog
 
-import nxbrew_dl
+import cart_dl
 from .layout_about import Ui_About
 
 
 class AboutWindow(QDialog):
 
     def __init__(self, parent=None):
-        """NXBrew-dl About window"""
+        """cart-dl About window"""
 
         super().__init__()
 
@@ -23,5 +23,5 @@ class AboutWindow(QDialog):
         self.ui.labelIcon.setPixmap(icon)
 
         # Set the version
-        version = nxbrew_dl.__version__
+        version = cart_dl.__version__
         self.ui.aboutVersion.setText(f"v{version}")

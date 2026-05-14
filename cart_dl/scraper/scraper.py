@@ -8,9 +8,9 @@ import myjdapi
 import numpy as np
 from pathvalidate import sanitize_filename
 
-import nxbrew_dl
+import cart_dl
 from ..util import (
-    NXBrewLogger,
+    CartDLLogger,
     discord_push,
     load_yml,
     load_json,
@@ -19,6 +19,7 @@ from ..util import (
     get_languages,
     get_thumb_url,
     get_dl_dict,
+    get_dl_dict_nswgame,
     bypass_ouo,
     bypass_1link,
 )
@@ -54,7 +55,7 @@ def add_ordered_score(
     return scores
 
 
-class NXBrew:
+class CartDL:
 
     def __init__(
         self,
@@ -90,7 +91,7 @@ class NXBrew:
         """
 
         # Load in various config files, if they're not already loaded
-        self.mod_dir = os.path.dirname(nxbrew_dl.__file__)
+        self.mod_dir = os.path.dirname(cart_dl.__file__)
 
         general_config_filename = os.path.join(self.mod_dir, "configs", "general.yml")
         if general_config is None:
@@ -130,13 +131,13 @@ class NXBrew:
         self.user_cache_file = user_cache_file
 
         if logger is None:
-            logger = NXBrewLogger(log_level="INFO")
+            logger = CartDLLogger(log_level="INFO")
         self.logger = logger
 
         # Set up JDownloader
         self.logger.info("Connecting to JDownloader")
         jd = myjdapi.Myjdapi()
-        jd.set_app_key("nxbrewdl")
+        jd.set_app_key("CartDLdl")
 
         jd.connect(self.user_config["jd_user"], self.user_config["jd_pass"])
 
@@ -162,7 +163,7 @@ class NXBrew:
         self.dry_run = self.user_config.get("dry_run", False)
 
     def run(self):
-        """Run NXBrew-dl"""
+        """Run cart-dl"""
 
         n_downloads = len(self.to_download)
 
@@ -172,7 +173,7 @@ class NXBrew:
 
         self.logger.info("")
         self.logger.info(f"=" * 80)
-        self.logger.info(f"{' ' * 30}STARTING NXBREW-DL{' ' * 30}")
+        self.logger.info(f"{' ' * 30}STARTING cart-dl{' ' * 30}")
         self.logger.info(f"=" * 80)
 
         for i_name, name in enumerate(self.to_download):
@@ -276,15 +277,21 @@ class NXBrew:
         implied_languages = self.general_config["implied_languages"]
         dl_sites = self.general_config["dl_sites"]
 
-        dl_dict = get_dl_dict(
-            soup,
-            regions=regions,
-            regionless_titles=regionless_titles,
-            languages=languages,
-            implied_languages=implied_languages,
-            dl_sites=dl_sites,
-            dl_mappings=self.dl_mappings,
-        )
+        try:
+            dl_dict = get_dl_dict(
+                soup,
+                regions=regions,
+                regionless_titles=regionless_titles,
+                languages=languages,
+                implied_languages=implied_languages,
+                dl_sites=dl_sites,
+                dl_mappings=self.dl_mappings,
+            )
+        except ValueError:
+            if "nswgame.com" in url:
+                dl_dict = get_dl_dict_nswgame(soup, dl_sites, self.dl_mappings)
+            else:
+                raise
         n_releases = len(dl_dict)
 
         if n_releases == 0:

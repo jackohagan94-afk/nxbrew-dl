@@ -1,4 +1,4 @@
-from .gui_nxbrew_dl import MainWindow
+from .gui_main import MainWindow
 from .gui_regions_languages import RegionLanguageWindow
 from .gui_about import AboutWindow
 

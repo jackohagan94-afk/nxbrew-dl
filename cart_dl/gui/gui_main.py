@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 from myjdapi.exception import MYJDException
 from packaging.version import Version
 
-import nxbrew_dl
+import cart_dl
 from .gui_about import AboutWindow
 from .gui_regions_languages import RegionLanguageWindow
 from .gui_utils import (
@@ -37,12 +37,12 @@ from .gui_utils import (
     add_row_to_table,
     get_ordered_list,
 )
-from .layout_nxbrew_dl import Ui_nxbrew_dl
-from ..nxbrew_dl import NXBrew
+from .layout_main import Ui_cart_dl
+from ..scraper import CartDL
 from ..util import (
     check_github_version,
     get_game_dict,
-    NXBrewLogger,
+    CartDLLogger,
     load_yml,
     save_yml,
     load_json,
@@ -67,15 +67,15 @@ def open_game_url(item):
 class MainWindow(QMainWindow):
 
     def __init__(self):
-        """NXBrew-dl Main Window
+        """cart-dl Main Window
 
-        This is the main GUI for NXBrew-dl. It's where the magic happens!
+        This is the main GUI for cart-dl. It's where the magic happens!
         """
 
         super().__init__()
 
         # Load in main GUI
-        self.ui = Ui_nxbrew_dl()
+        self.ui = Ui_cart_dl()
         self.ui.setupUi(self)
 
         # Set the window icon
@@ -85,20 +85,20 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(icon)
 
         # Set up the logger
-        self.logger = NXBrewLogger(log_level="INFO")
+        self.logger = CartDLLogger(log_level="INFO")
         self.logger.warning("Do not close this window!")
 
         # Check for version updates
         self.logger.info("Checking for new versions online")
         github_version, github_url = check_github_version()
-        local_version = nxbrew_dl.__version__
+        local_version = cart_dl.__version__
 
         new_version_available = False
         if Version(local_version) < Version(github_version):
-            self.logger.info("New version of NXBrew-dl available!")
+            self.logger.info("New version of cart-dl available!")
             new_version_available = True
         else:
-            self.logger.info("You have the latest version of NXBrew-dl")
+            self.logger.info("You have the latest version of cart-dl")
 
         self.update_notification = self.setup_update_notification(
             new_version_available,
@@ -106,7 +106,7 @@ class MainWindow(QMainWindow):
         )
 
         # Load in various config files
-        self.mod_dir = os.path.dirname(nxbrew_dl.__file__)
+        self.mod_dir = os.path.dirname(cart_dl.__file__)
 
         general_config_filename = os.path.join(self.mod_dir, "configs", "general.yml")
         self.general_config = load_yml(general_config_filename)
@@ -137,26 +137,26 @@ class MainWindow(QMainWindow):
             self.user_cache = {}
 
         # Set up the worker threads for later
-        self.nxbrew_thread = None
-        self.nxbrew_worker = None
+        self.CartDL_thread = None
+        self.CartDL_worker = None
 
         # Help menu buttons
         documentation = self.ui.actionDocumentation
         documentation.triggered.connect(
-            lambda: open_url("https://nxbrew-dl.readthedocs.io")
+            lambda: open_url("https://cart-dl.readthedocs.io")
         )
 
         issues = self.ui.actionIssues
         issues.triggered.connect(
-            lambda: open_url("https://github.com/bbtufty/nxbrew-dl/issues")
+            lambda: open_url("https://github.com/bbtufty/cart-dl/issues")
         )
 
         about = self.ui.actionAbout
         about.triggered.connect(lambda: AboutWindow(self).exec())
 
         # Main window buttons
-        run_nxbrew_dl = self.ui.pushButtonRun
-        run_nxbrew_dl.clicked.connect(self.run_nxbrew_dl)
+        run_cart_dl = self.ui.pushButtonRun
+        run_cart_dl.clicked.connect(self.run_cart_dl)
 
         exit_button = self.ui.pushButtonExit
         exit_button.clicked.connect(self.close)
@@ -320,19 +320,19 @@ class MainWindow(QMainWindow):
             return None
 
     def get_game_dict(self):
-        """Get game dictionary from NXBrew A-Z page"""
+        """Get game dictionary from CartDL A-Z page"""
 
-        if "nxbrew" not in self.user_config.get("nxbrew_url", ""):
+        if "CartDL" not in self.user_config.get("CartDL_url", ""):
             self.logger.warning(
-                "NXBrew URL not found. Enter one and refresh the game list!"
+                "CartDL URL not found. Enter one and refresh the game list!"
             )
             return False
 
         try:
-            _ = requests.get(self.user_config["nxbrew_url"], impersonate="chrome")
+            _ = requests.get(self.user_config["CartDL_url"], impersonate="chrome")
         except (requests.exceptions.SSLError, requests.exceptions.MissingSchema) as e:
             self.logger.warning(
-                "Error found in NXBrew URL! Enter one that works and refresh the game list!"
+                "Error found in CartDL URL! Enter one that works and refresh the game list!"
             )
             return False
 
@@ -340,7 +340,7 @@ class MainWindow(QMainWindow):
             self.game_dict = get_game_dict(
                 general_config=self.general_config,
                 regex_config=self.regex_config,
-                nxbrew_url=self.user_config["nxbrew_url"],
+                CartDL_url=self.user_config["CartDL_url"],
             )
         except Exception as e:
             self.logger.warning(
@@ -363,7 +363,7 @@ class MainWindow(QMainWindow):
                 self.game_table.hideRow(r)
 
     def update_progressbar_value(self, value):
-        self.nxbrew_worker.progress_bar.setValue(value)
+        self.CartDL_worker.progress_bar.setValue(value)
 
     def load_table(self):
         """Load the game table, disable things until we're done"""
@@ -430,7 +430,7 @@ class MainWindow(QMainWindow):
         """Apply read in config to the GUI"""
 
         text_fields = {
-            "nxbrew_url": self.ui.lineEditNXBrewURL,
+            "CartDL_url": self.ui.lineEditCartDLURL,
             "download_dir": self.ui.lineEditDownloadDir,
             "jd_device": self.ui.lineEditJDownloaderDevice,
             "jd_user": self.ui.lineEditJDownloaderUser,
@@ -494,7 +494,7 @@ class MainWindow(QMainWindow):
         """Save config to file"""
 
         text_fields = {
-            "nxbrew_url": self.ui.lineEditNXBrewURL.text(),
+            "CartDL_url": self.ui.lineEditCartDLURL.text(),
             "download_dir": self.ui.lineEditDownloadDir.text(),
             "jd_device": self.ui.lineEditJDownloaderDevice.text(),
             "jd_user": self.ui.lineEditJDownloaderUser.text(),
@@ -569,8 +569,8 @@ class MainWindow(QMainWindow):
             line_edit.setText(filename)
 
     @Slot()
-    def run_nxbrew_dl(self):
-        """Run NXBrew-dl"""
+    def run_cart_dl(self):
+        """Run cart-dl"""
 
         # Start out by saving the config
         self.save_config()
@@ -592,8 +592,8 @@ class MainWindow(QMainWindow):
                         to_download.update({n: url})
 
         # Set up everything so the GUI doesn't hang
-        self.nxbrew_thread = QThread()
-        self.nxbrew_worker = NXBrewWorker(
+        self.CartDL_thread = QThread()
+        self.CartDL_worker = CartDLWorker(
             to_download=to_download,
             progress_bar=self.ui.progressBar,
             progress_bar_label=self.ui.labelProgressBar,
@@ -602,22 +602,22 @@ class MainWindow(QMainWindow):
             logger=self.logger,
         )
 
-        self.nxbrew_worker.moveToThread(self.nxbrew_thread)
-        self.nxbrew_thread.started.connect(self.nxbrew_worker.run)
-        self.nxbrew_worker.update_progressBar.connect(self.update_progressbar_value)
+        self.CartDL_worker.moveToThread(self.CartDL_thread)
+        self.CartDL_thread.started.connect(self.CartDL_worker.run)
+        self.CartDL_worker.update_progressBar.connect(self.update_progressbar_value)
 
         # Delete the thread once we're done
-        self.nxbrew_worker.finished.connect(self.nxbrew_thread.quit)
-        self.nxbrew_worker.finished.connect(self.nxbrew_worker.deleteLater)
-        self.nxbrew_thread.finished.connect(self.nxbrew_thread.deleteLater)
+        self.CartDL_worker.finished.connect(self.CartDL_thread.quit)
+        self.CartDL_worker.finished.connect(self.CartDL_worker.deleteLater)
+        self.CartDL_thread.finished.connect(self.CartDL_thread.deleteLater)
 
         # When finished, re-enable the UI
-        self.nxbrew_thread.finished.connect(
+        self.CartDL_thread.finished.connect(
             lambda: self.enable_disable_ui(mode="enable")
         )
 
         # Start the thread
-        self.nxbrew_thread.start()
+        self.CartDL_thread.start()
 
         # Disable the UI
         self.enable_disable_ui(mode="disable")
@@ -646,7 +646,7 @@ class MainWindow(QMainWindow):
 
         # Disable the various UI elements
         ui_elements = [
-            self.ui.lineEditNXBrewURL,
+            self.ui.lineEditCartDLURL,
             self.ui.lineEditDownloadDir,
             self.ui.pushButtonDownloadDir,
             self.ui.lineEditJDownloaderDevice,
@@ -678,8 +678,8 @@ class MainWindow(QMainWindow):
         return True
 
 
-class NXBrewWorker(QObject):
-    """Handles running NXBrew so GUI doesn't hang"""
+class CartDLWorker(QObject):
+    """Handles running CartDL so GUI doesn't hang"""
 
     finished = Signal()
     update_progressBar = Signal(int)
@@ -695,7 +695,7 @@ class NXBrewWorker(QObject):
         user_cache=None,
         logger=None,
     ):
-        """Initialise the NXBrew downloader
+        """Initialise the CartDL downloader
 
         Args:
             to_download (dict): Dictionary of ROMs to download
@@ -728,10 +728,10 @@ class NXBrewWorker(QObject):
         self.logger = logger
 
     def run(self):
-        """Run NXBrew-dl"""
+        """Run cart-dl"""
 
         try:
-            nx = NXBrew(
+            nx = CartDL(
                 to_download=self.to_download,
                 progress_bar=self.progress_bar,
                 progress_bar_label=self.progress_bar_label,
