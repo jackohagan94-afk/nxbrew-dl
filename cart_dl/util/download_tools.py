@@ -192,6 +192,46 @@ def get_dl_dict_switchroms(soup, base_url, dl_sites, dl_mappings):
     return dl_dict
 
 
+def get_dl_dict_ziperto(soup, dl_sites, dl_mappings):
+    """Parse download links from ziperto.com game pages"""
+    dl_dict = {"release_1": {"regions": ["All"], "languages": ["All"]}}
+    entry = soup.find("div", class_="entry-content") or soup.find("article")
+    if not entry:
+        return dl_dict
+
+    for a in entry.find_all("a", href=True):
+        href = a["href"]
+        if any(s in href.lower() for s in ["twitter", "facebook", "#comment", "javascript"]):
+            continue
+        url_lower = href.lower()
+        text = a.get_text(strip=True).lower()
+
+        # Determine file type
+        dl_key = "base_game_nsp"
+        if "dlc" in url_lower or "dlc" in text: dl_key = "dlc"
+        elif "update" in url_lower or "update" in text: dl_key = "update"
+        elif "xci" in url_lower or "xci" in text: dl_key = "base_game_xci"
+
+        # Determine host
+        site = None
+        for s, sn in [("1fichier","1Fichier"),("frdl","FreeDL"),("gofile","GoFile"),
+                       ("datanodes","DataNodes"),("hexload","HexLoad"),("hexupload","HexUpload"),
+                       ("megaup","MegaUp"),("mixdrop","MixDrop"),("mediafire","MediaFire")]:
+            if s in url_lower: site = sn; break
+        if not site:
+            continue
+
+        if dl_key not in dl_dict["release_1"]:
+            dl_dict["release_1"][dl_key] = []
+        found = False
+        for ei in dl_dict["release_1"][dl_key]:
+            if site in ei: ei[site].append(href); found = True
+        if not found:
+            dl_dict["release_1"][dl_key].append({"full_name": dl_key.replace("_"," ").title(), site: [href]})
+
+    return dl_dict
+
+
 def get_dl_dict(
     soup,
     dl_sites,

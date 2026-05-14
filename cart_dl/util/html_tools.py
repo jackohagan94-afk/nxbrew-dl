@@ -17,6 +17,7 @@ ALTERNATIVE_INDICES = [
     ("https://nxbrew.me", "games/"),
     ("https://nswgame.com", "list-all-game-switch/"),
     ("https://switch-roms.com", "post-sitemap.xml"),
+    ("https://www.ziperto.com", "category/nintendo-switch-nsp/"),
 ]
 
 # URL patterns used by various sites
@@ -174,6 +175,37 @@ def _parse_sitemap_xml(soup, base_url, general_config, regex_config, game_dict):
         }
 
 
+def _parse_ziperto_index(soup, base_url, general_config, regex_config, game_dict):
+    """Parse ziperto.com category pages (article-based blog listings)"""
+    nsp_xci_variations = regex_config["nsp_variations"] + regex_config["xci_variations"]
+    articles = soup.find_all("article") or soup.find_all("div", class_="post")
+    for article in articles:
+        link = article.find("a", href=True)
+        if not link:
+            continue
+        href = link["href"]
+        if "/category/" in href or "/page/" in href or "#" in href:
+            continue
+        if not href.startswith("http"):
+            href = urljoin(base_url, href)
+        if href in game_dict:
+            continue
+        long_name = link.get_text(strip=True) or article.get_text(strip=True)[:120]
+        if not long_name or long_name in general_config["forbidden_titles"]:
+            continue
+        short_name = get_game_name(long_name, nsp_xci_variations=nsp_xci_variations)
+        remaining_name = long_name.replace(short_name, "")
+        has_nsp = check_has_filetype(remaining_name, regex_config["nsp_variations"])
+        has_xci = check_has_filetype(remaining_name, regex_config["xci_variations"])
+        has_update = check_has_filetype(remaining_name, regex_config["update_variations"])
+        has_dlc = check_has_filetype(remaining_name, regex_config["dlc_variations"])
+        game_dict[href] = {
+            "long_name": long_name, "short_name": short_name, "url": href,
+            "has_nsp": has_nsp, "has_xci": has_xci,
+            "has_update": has_update, "has_dlc": has_dlc,
+        }
+
+
 def _parse_li_entries(soup, base_url, general_config, regex_config, game_dict):
     """Parse game entries from <ul><li><a> format (old site structure)
 
@@ -328,7 +360,9 @@ def get_game_dict(
         if "nswgame" in alt_domain:
             _parse_nswgame_index(alt_html, alt_domain, general_config, regex_config, game_dict)
         elif "switch-roms.com" in alt_domain:
-            _parse_nswgame_index(alt_html, alt_domain, general_config, regex_config, game_dict)
+            _parse_sitemap_xml(alt_html, alt_domain, general_config, regex_config, game_dict)
+        elif "ziperto" in alt_domain:
+            _parse_ziperto_index(alt_html, alt_domain, general_config, regex_config, game_dict)
         else:
             _parse_li_entries(alt_html, alt_domain, general_config, regex_config, game_dict)
 

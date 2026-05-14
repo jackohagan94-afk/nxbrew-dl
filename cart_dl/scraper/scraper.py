@@ -22,6 +22,7 @@ from ..util import (
     get_dl_dict,
     get_dl_dict_nswgame,
     get_dl_dict_switchroms,
+    get_dl_dict_ziperto,
     bypass_ouo,
     bypass_1link,
 )
@@ -298,6 +299,8 @@ class CartDL:
                 dl_dict = get_dl_dict_nswgame(soup, dl_sites, self.dl_mappings)
             elif "switch-roms.com" in url:
                 dl_dict = get_dl_dict_switchroms(soup, url, dl_sites, self.dl_mappings)
+            elif "ziperto.com" in url:
+                dl_dict = get_dl_dict_ziperto(soup, dl_sites, self.dl_mappings)
             else:
                 self.logger.warning(f"No download links found on page for {name}")
                 return False
