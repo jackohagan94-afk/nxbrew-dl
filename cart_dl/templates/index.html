@@ -57,7 +57,7 @@ footer{padding:6px 16px;background:var(--bg2);border-top:1px solid var(--border)
 <body>
 <header>
   <h1>🛒 cart-dl</h1>
-  <input id="search" placeholder="Filter games..." autofocus oninput="filter()">
+  <input id="search" placeholder="Filter games..." autofocus oninput="doSearch()">
   <button onclick="selectAll()">☑ All</button>
   <button onclick="selectNone()">☐ None</button>
   <button onclick="selectVisible()">☑ Visible</button>
@@ -119,108 +119,79 @@ footer{padding:6px 16px;background:var(--bg2);border-top:1px solid var(--border)
 </div>
 <script>
 let allGames = [];
-let filtered = [];
+let totalGames = 0;
+let pageSize = 200;
+let currentOffset = 0;
 let selected = new Set();
 let sortCol = 2, sortDir = -1;
+let loading = false;
 
-async function loadGames() {
-  document.getElementById('footer-status').textContent = 'Loading games...';
+async function loadGames(reset) {
+  if (loading) return;
+  loading = true;
+  if (reset) { allGames = []; currentOffset = 0; selected.clear(); }
+  document.getElementById('footer-status').textContent = 'Loading...';
   try {
-    let resp = await fetch('/api/games');
+    let q = document.getElementById('search').value || '';
+    let url = `/api/games?offset=${currentOffset}&limit=${pageSize}&sort=${sortCol===2?'rating':'name'}&order=${sortDir<0?'desc':'asc'}`;
+    if (q) url += '&q=' + encodeURIComponent(q);
+    let resp = await fetch(url);
     let data = await resp.json();
-    allGames = data.games;
-    filtered = allGames.map((_, i) => i);
-    updateStats();
+    if (reset) { allGames = data.games; totalGames = data.total; }
+    else { allGames = allGames.concat(data.games); totalGames = data.total; }
+    currentOffset += data.games.length;
     render();
-    document.getElementById('footer-status').textContent = `Loaded ${data.total} games`;
+    updateStats();
+    document.getElementById('footer-status').textContent = `Loaded ${allGames.length} of ${totalGames.toLocaleString()} games`;
     loadHealth();
   } catch(e) {
-    document.getElementById('footer-status').textContent = 'Error loading: ' + e.message;
+    document.getElementById('footer-status').textContent = 'Error: ' + e.message;
   }
+  loading = false;
 }
 
 function updateStats() {
-  document.getElementById('stat-total').textContent = `Games: ${allGames.length}`;
+  document.getElementById('stat-total').textContent = `Games: ${totalGames.toLocaleString()}`;
   let rated = allGames.filter(g => g.rating !== null).length;
-  document.getElementById('stat-rated').textContent = `Rated: ${rated}`;
-  document.getElementById('stat-visible').textContent = `Showing: ${filtered.length}`;
+  document.getElementById('stat-rated').textContent = `Rated: ${rated.toLocaleString()}`;
+  document.getElementById('stat-visible').textContent = `Loaded: ${allGames.length.toLocaleString()}`;
 }
 
-function filter() {
-  applyAllFilters();
-}
-function filterPlatforms() { applyAllFilters(); }
-
-function getCheckedPlatforms() {
-  let cbs = document.querySelectorAll('#platform-bar input[type=checkbox]');
-  let active = new Set();
-  cbs.forEach(cb => { if (cb.checked) active.add(cb.value); });
-  return active;
-}
-
-function applyAllFilters() {
-  let q = document.getElementById('search').value.toLowerCase();
-  let platforms = getCheckedPlatforms();
-  filtered = [];
-  for (let i = 0; i < allGames.length; i++) {
-    let g = allGames[i];
-    let nameMatch = !q || (g.name||'').toLowerCase().includes(q) || (g.long_name||'').toLowerCase().includes(q);
-    let platMatch = platforms.has(g.platform || 'switch');
-    if (nameMatch && platMatch) filtered.push(i);
-  }
-  if (sortCol !== null) sort();
-  updateStats();
-  render();
-}
-
-function filter() {
-  let q = document.getElementById('search').value.toLowerCase();
-  if (!q) { filtered = allGames.map((_, i) => i); }
-  else {
-    filtered = [];
-    for (let i = 0; i < allGames.length; i++) {
-      let g = allGames[i];
-      if ((g.name||'').toLowerCase().includes(q) || (g.long_name||'').toLowerCase().includes(q)) {
-        filtered.push(i);
-      }
-    }
-  }
-  if (sortCol !== null) sort();
-  updateStats();
-  render();
+function doSearch() {
+  currentOffset = 0; allGames = [];
+  loadGames(true);
 }
 
 function sort(col) {
-  if (col !== undefined) {
-    if (sortCol === col) sortDir *= -1;
-    else { sortCol = col; sortDir = -1; }
-  }
-  filtered.sort((a, b) => {
-    let va, vb;
-    if (sortCol === 2) { va = allGames[a].rating || 0; vb = allGames[b].rating || 0; }
-    else if (sortCol === 3) { va = allGames[a].has_nsp ? 1 : 0; vb = allGames[b].has_nsp ? 1 : 0; }
-    else if (sortCol === 4) { va = allGames[a].has_xci ? 1 : 0; vb = allGames[b].has_xci ? 1 : 0; }
-    else { va = (allGames[a].name||'').toLowerCase(); vb = (allGames[b].name||'').toLowerCase(); }
-    if (va < vb) return -sortDir;
-    if (va > vb) return sortDir;
-    return 0;
-  });
-  render();
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = -1; }
+  currentOffset = 0; allGames = [];
+  loadGames(true);
 }
+
+// Infinite scroll
+document.getElementById('table-wrap').addEventListener('scroll', function() {
+  let el = this;
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200 && !loading && allGames.length < totalGames) {
+    loadGames(false);
+  }
+});
+
+function filterPlatforms() { doSearch(); }
 
 function render() {
   let tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
-  for (let i = 0; i < filtered.length; i++) {
-    let g = allGames[filtered[i]];
+  for (let i = 0; i < allGames.length; i++) {
+    let g = allGames[i];
     let tr = document.createElement('tr');
-    if (selected.has(filtered[i])) tr.classList.add('selected');
+    if (selected.has(i)) tr.classList.add('selected');
     tr.onclick = (e) => {
       if (e.target.tagName === 'INPUT') return;
-      e.ctrlKey || e.metaKey ? toggleSelect(filtered[i]) : (selected.clear(), selected.add(filtered[i]), render());
+      e.ctrlKey || e.metaKey ? toggleSelect(i) : (selected.clear(), selected.add(i), render());
     };
     tr.innerHTML = `
-      <td><input type="checkbox" ${selected.has(filtered[i])?'checked':''} onclick="toggleSelect(${filtered[i]})"></td>
+      <td><input type="checkbox" ${selected.has(i)?'checked':''} onclick="toggleSelect(${i})"></td>
       <td title="${g.long_name||''}">${g.name||'?'}</td>
       <td class="${g.rating>=80?'rating-high':g.rating>=60?'rating-mid':g.rating?'rating-low':'rating-none'}">${g.rating||'?'}</td>
       <td><span class="badge ${g.has_nsp?'badge-yes':'badge-no'}">${g.has_nsp?'NSP':'---'}</span></td>
@@ -236,13 +207,10 @@ function toggleSelect(idx) {
   selected.has(idx) ? selected.delete(idx) : selected.add(idx);
   render();
 }
-
 function selectAll() { allGames.forEach((_,i) => selected.add(i)); render(); }
 function selectNone() { selected.clear(); render(); }
-function selectVisible() { filtered.forEach(i => selected.add(i)); render(); }
+function selectVisible() { allGames.forEach((_,i) => selected.add(i)); render(); }
 function updateSelectedCount() { document.getElementById('stat-selected').textContent = `Selected: ${selected.size}`; }
-
-let downloadPoll = null;
 
 async function downloadSelected() {
   if (selected.size === 0) return alert('No games selected');

@@ -22,31 +22,14 @@ regex_config = load_yml(os.path.join(MOD_DIR, "configs", "regex.yml"))
 IGDBClient.load_precache()
 
 _game_dict = None
+_games_cache = None  # Pre-computed sorted game list for fast pagination
 _download_state = {"running": False, "current": 0, "total": 0, "game": "", "log": []}
 _server_start_time = time.time()
 
 
-def get_user_config():
-    if os.path.exists(CONFIG_FILE):
-        return load_yml(CONFIG_FILE)
-    return {}
-
-
-def save_user_config(config):
-    save_yml(CONFIG_FILE, config)
-
-
-@app.get("/", response_class=HTMLResponse)
-async def index():
-    template = Path(os.path.join(MOD_DIR, "templates", "index.html"))
-    if template.exists():
-        return template.read_text(encoding="utf-8")
-    return HTMLResponse("<h1>cart-dl server running</h1>")
-
-
-@app.get("/api/games")
-async def api_games():
-    global _game_dict
+def _build_game_cache():
+    """Build the sorted game cache from the game dict"""
+    global _game_dict, _games_cache
     cfg = get_user_config()
     source_url = cfg.get("source_url", "https://nxbrew.net")
 
@@ -65,9 +48,9 @@ async def api_games():
         "igdb_exclude_multi_platform": cfg.get("igdb_exclude_multi_platform", False),
     })
 
-    games = []
+    _games_cache = []
     for url, info in filtered.items():
-        games.append({
+        _games_cache.append({
             "name": info.get("short_name", info.get("long_name", "")),
             "long_name": info.get("long_name", ""),
             "url": url,
@@ -80,9 +63,34 @@ async def api_games():
             "other_platforms": info.get("igdb_other_platforms", []),
             "platform": "switch",
         })
+    _games_cache.sort(key=lambda g: g["rating"] or 0, reverse=True)
 
-    games.sort(key=lambda g: g["rating"] or 0, reverse=True)
-    return JSONResponse({"total": len(games), "games": games})
+
+@app.get("/api/games")
+async def api_games(request: Request, offset: int = 0, limit: int = 100, sort: str = "rating", order: str = "desc"):
+    """Paginated game list. Builds cache on first call."""
+    global _games_cache
+    if _games_cache is None:
+        _build_game_cache()
+
+    games = _games_cache
+
+    # Server-side search
+    q = request.query_params.get("q", "").lower()
+    if q:
+        games = [g for g in games if q in g["name"].lower() or q in g.get("long_name", "").lower()]
+
+    # Sort
+    reverse = order == "desc"
+    if sort == "name":
+        games = sorted(games, key=lambda g: g["name"].lower(), reverse=reverse)
+    elif sort == "rating":
+        games = sorted(games, key=lambda g: g["rating"] or 0, reverse=reverse)
+
+    total = len(games)
+    page = games[offset:offset + limit]
+
+    return JSONResponse({"total": total, "offset": offset, "limit": limit, "games": page})
 
 
 @app.post("/api/games/refresh")
