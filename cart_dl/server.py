@@ -1,0 +1,177 @@
+import os, sys, json, time, webbrowser, threading
+from pathlib import Path
+
+import uvicorn
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from sse_starlette.sse import EventSourceResponse
+
+from .util.io_tools import load_yml, save_yml, load_json
+from .util.html_tools import get_game_dict, get_html_page
+from .util.download_tools import get_dl_dict, get_dl_dict_nswgame
+from .util.igdb_tools import IGDBClient, filter_game_dict, DEFAULT_MIN_RATING
+from .scraper.scraper import CartDL
+
+app = FastAPI(title="cart-dl", version="0.8.0")
+
+CONFIG_FILE = os.path.join(os.getcwd(), "config.yml")
+MOD_DIR = os.path.dirname(__file__)
+
+general_config = load_yml(os.path.join(MOD_DIR, "configs", "general.yml"))
+regex_config = load_yml(os.path.join(MOD_DIR, "configs", "regex.yml"))
+
+IGDBClient.load_precache()
+
+_game_dict = None
+_server_start_time = time.time()
+
+
+def get_user_config():
+    if os.path.exists(CONFIG_FILE):
+        return load_yml(CONFIG_FILE)
+    return {}
+
+
+def save_user_config(config):
+    save_yml(CONFIG_FILE, config)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    template = Path(os.path.join(MOD_DIR, "templates", "index.html"))
+    if template.exists():
+        return template.read_text(encoding="utf-8")
+    return HTMLResponse("<h1>cart-dl server running</h1>")
+
+
+@app.get("/api/games")
+async def api_games():
+    global _game_dict
+    cfg = get_user_config()
+    source_url = cfg.get("source_url", "https://nxbrew.net")
+
+    if _game_dict is None:
+        _game_dict = get_game_dict(general_config, regex_config, source_url)
+
+    igdb = IGDBClient(
+        client_id=cfg.get("igdb_client_id") or None,
+        client_secret=cfg.get("igdb_client_secret") or None,
+    )
+    filtered = filter_game_dict(_game_dict.copy(), igdb, {
+        "igdb_min_rating": cfg.get("igdb_min_rating", DEFAULT_MIN_RATING),
+        "igdb_exclude_vn": cfg.get("igdb_exclude_vn", True),
+        "igdb_exclude_shovelware": cfg.get("igdb_exclude_shovelware", True),
+        "igdb_switch_only": cfg.get("igdb_switch_only", True),
+        "igdb_exclude_multi_platform": cfg.get("igdb_exclude_multi_platform", False),
+    })
+
+    games = []
+    for url, info in filtered.items():
+        games.append({
+            "name": info.get("short_name", info.get("long_name", "")),
+            "long_name": info.get("long_name", ""),
+            "url": url,
+            "rating": info.get("igdb_rating"),
+            "has_nsp": info.get("has_nsp", False),
+            "has_xci": info.get("has_xci", False),
+            "has_update": info.get("has_update", False),
+            "has_dlc": info.get("has_dlc", False),
+            "igdb_match": info.get("igdb_match", False),
+            "other_platforms": info.get("igdb_other_platforms", []),
+        })
+
+    games.sort(key=lambda g: g["rating"] or 0, reverse=True)
+    return JSONResponse({"total": len(games), "games": games})
+
+
+@app.post("/api/games/refresh")
+async def api_refresh(request: Request):
+    global _game_dict
+    cfg = get_user_config()
+    source_url = cfg.get("source_url", "https://nxbrew.net")
+
+    async def generate():
+        yield {"event": "status", "data": "scraping"}
+        _game_dict = get_game_dict(general_config, regex_config, source_url)
+        yield {"event": "status", "data": json.dumps({"scraped": len(_game_dict)})}
+
+        yield {"event": "status", "data": "enriching"}
+        # Reload precache
+        IGDBClient.load_precache()
+        yield {"event": "status", "data": "done"}
+
+    return EventSourceResponse(generate())
+
+
+@app.post("/api/download")
+async def api_download(request: Request):
+    body = await request.json()
+    game_urls = body.get("games", [])
+    if not game_urls:
+        raise HTTPException(400, "No games specified")
+
+    cfg = get_user_config()
+
+    async def generate():
+        for i, url in enumerate(game_urls):
+            game_name = url.split("/")[-2].replace("-", " ").title()
+            yield {"event": "log", "data": f"Downloading: {game_name}"}
+
+            try:
+                nx = CartDL(
+                    to_download={game_name: url},
+                    user_config=cfg,
+                )
+                # Run in thread to avoid blocking
+                thread = threading.Thread(target=nx.run)
+                thread.start()
+                thread.join(timeout=3600)
+                yield {"event": "progress", "data": json.dumps({"current": i + 1, "total": len(game_urls), "game": game_name, "status": "complete"})}
+            except Exception as e:
+                yield {"event": "log", "data": f"Error: {game_name}: {str(e)}"}
+
+        yield {"event": "status", "data": "done"}
+
+    return EventSourceResponse(generate())
+
+
+@app.get("/api/config")
+async def api_config():
+    cfg = get_user_config()
+    safe = {}
+    for k, v in cfg.items():
+        if any(s in k.lower() for s in ["pass", "secret", "token"]):
+            safe[k] = "***" if v else ""
+        else:
+            safe[k] = v
+    safe["has_jd"] = bool(cfg.get("jd_user") and cfg.get("jd_pass"))
+    safe["has_igdb"] = bool(cfg.get("igdb_client_id") and cfg.get("igdb_client_secret"))
+    return JSONResponse(safe)
+
+
+@app.post("/api/config")
+async def api_config_save(request: Request):
+    body = await request.json()
+    cfg = get_user_config()
+    cfg.update(body)
+    save_user_config(cfg)
+    return JSONResponse({"status": "ok"})
+
+
+@app.get("/api/health")
+async def api_health():
+    cfg = get_user_config()
+    return JSONResponse({
+        "status": "ok",
+        "uptime": round(time.time() - _server_start_time),
+        "games_loaded": len(_game_dict) if _game_dict else 0,
+        "precache_size": len(IGDBClient._precache) if IGDBClient._precache else 0,
+        "source_url": cfg.get("source_url", ""),
+        "has_jd": bool(cfg.get("jd_user")),
+    })
+
+
+def run_server(host="127.0.0.1", port=8765, open_browser=True):
+    if open_browser:
+        threading.Timer(1.0, lambda: webbrowser.open(f"http://{host}:{port}")).start()
+    uvicorn.run(app, host=host, port=port, log_level="warning")

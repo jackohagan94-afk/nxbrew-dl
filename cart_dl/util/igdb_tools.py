@@ -65,21 +65,43 @@ class IGDBClient:
         """Load pre-cached IGDB data (call once at startup)"""
         if data:
             cls._precache = data
+            cls._build_token_index()
             return
         try:
-            import os, json, unicodedata
+            import os, json
             path = os.path.join(os.path.dirname(__file__), "..", "configs", "igdb_precache.json")
             if os.path.exists(path):
                 with open(path, "r", encoding="utf-8") as f:
                     raw = json.load(f)
-                # Normalize keys: lowercase + strip diacritics for accent-insensitive matching
                 cls._precache = {}
                 for k, v in raw.items():
                     nk = _normalize_key(k)
                     if nk not in cls._precache or (v.get("r") and not cls._precache[nk].get("r")):
                         cls._precache[nk] = v
+                cls._build_token_index()
         except Exception:
             pass
+
+    @classmethod
+    def _build_token_index(cls):
+        """Precompute inverted token index for Stage 2 matching"""
+        cls._token_index = {}
+        cls._token_inverted = {}
+        if not cls._precache:
+            return
+        import re
+        STOP = {"the","a","an","of","in","on","at","to","for","and","or","with","by","from","is","was","as","but","edition","ver","version","complete","definitive","remastered","deluxe","switch","nsp","xci","eshop","nintendo","game"}
+        for key, entry in cls._precache.items():
+            tokens = set()
+            for t in re.findall(r'[a-z0-9]+', key):
+                if t not in STOP and len(t) > 1:
+                    tokens.add(t)
+            if tokens:
+                cls._token_index[key] = tokens
+                for t in tokens:
+                    if t not in cls._token_inverted:
+                        cls._token_inverted[t] = []
+                    cls._token_inverted[t].append(key)
 
     def __init__(self, client_id=None, client_secret=None, cache_file=None, logger=None):
         self.client_id = client_id
@@ -225,6 +247,32 @@ class IGDBClient:
         # 1. Try static precache (instant, no API needed)
         if self._precache is not None:
             p = self._precache.get(cache_key)
+
+            # Stage 2: Token-set Jaccard using inverted index (O(tokens) instead of O(n))
+            if p is None and hasattr(self.__class__, '_token_inverted') and self._token_inverted:
+                import re
+                q_tokens = set()
+                for t in re.findall(r'[a-z0-9]+', cache_key):
+                    if len(t) > 1:
+                        q_tokens.add(t)
+                if q_tokens:
+                    candidates = set()
+                    for t in q_tokens:
+                        if t in self._token_inverted:
+                            candidates.update(self._token_inverted[t])
+                    best_score = 0.35
+                    best_entry = None
+                    for ckey in candidates:
+                        ttoks = self._token_index.get(ckey, set())
+                        if not ttoks:
+                            continue
+                        jac = len(q_tokens & ttoks) / len(q_tokens | ttoks)
+                        if jac > best_score:
+                            best_score = jac
+                            best_entry = self._precache[ckey]
+                    if best_entry:
+                        p = best_entry
+
             if p:
                 game = {
                     "name": p["n"],
