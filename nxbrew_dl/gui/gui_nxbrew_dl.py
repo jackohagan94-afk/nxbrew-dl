@@ -291,6 +291,12 @@ class MainWindow(QMainWindow):
         layout.insertWidget(spacer_idx, self.checkBoxExcludeMultiPlatform)
         spacer_idx += 1
 
+        self.checkBoxDisableIGDB = QCheckBox("Disable IGDB Filters (Show All)", self.ui.centralwidget)
+        self.checkBoxDisableIGDB.setObjectName("checkBoxDisableIGDB")
+        self.checkBoxDisableIGDB.setChecked(False)
+        layout.insertWidget(spacer_idx, self.checkBoxDisableIGDB)
+        spacer_idx += 1
+
     def _get_igdb_client(self):
         """Lazy-initialize the IGDB client"""
         if self.igdb_client is not None:
@@ -371,9 +377,9 @@ class MainWindow(QMainWindow):
         self.game_dict = {}
         self.get_game_dict()
 
-        # Apply IGDB filtering if configured
+        # Apply IGDB filtering if configured and not disabled
         igdb = self._get_igdb_client()
-        if igdb is not None and len(self.game_dict) > 0:
+        if igdb is not None and len(self.game_dict) > 0 and not self.checkBoxDisableIGDB.isChecked():
             igdb_config = {
                 "igdb_min_rating": self.user_config.get("igdb_min_rating", DEFAULT_MIN_RATING),
                 "igdb_exclude_vn": self.user_config.get("igdb_exclude_vn", True),
