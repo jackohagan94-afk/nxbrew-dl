@@ -58,6 +58,9 @@ class IGDBClient:
         self.logger = logger
         self.cache_file = cache_file
         self.cache = {}
+        self._last_request = 0
+        self._rate_delay = 0.25  # 4 req/s max
+        self._batch_cache = None
         self._load_cache()
 
     def _log(self, level, msg):
@@ -94,8 +97,14 @@ class IGDBClient:
         self._log("info", "IGDB: authenticated successfully")
 
     def _api_call(self, endpoint, query):
-        """Make an IGDB API call"""
+        """Make an IGDB API call with rate limiting"""
         self._authenticate()
+
+        # Rate limit: min 250ms between requests (4 req/s)
+        elapsed = time.time() - self._last_request
+        if elapsed < self._rate_delay:
+            time.sleep(self._rate_delay - elapsed)
+
         resp = requests.post(
             f"https://api.igdb.com/v4/{endpoint}",
             headers={
@@ -104,86 +113,110 @@ class IGDBClient:
             },
             data=query,
         )
+        self._last_request = time.time()
+
         if resp.status_code == 429:
             self._log("warning", "IGDB: rate limited, waiting 1s")
             time.sleep(1)
+            self._last_request = 0
             return self._api_call(endpoint, query)
         resp.raise_for_status()
         return resp.json()
 
-    def search_game(self, name):
-        """Search IGDB for a game by name, return best match
-
-        Args:
-            name (str): Game name to search
+    def preload_switch_games(self):
+        """Batch-load all Switch games from IGDB for fast local matching
 
         Returns:
-            dict or None: Game info with rating, genres, platforms
+            list: All Switch game entries with name, rating, genres, platforms
         """
-        cache_key = name.lower().strip()
-        if cache_key in self.cache:
-            return self.cache[cache_key]
+        if self._batch_cache is not None:
+            return self._batch_cache
 
-        try:
-            # Try exact name search first
+        self._log("info", "IGDB: batch loading Switch game library...")
+        all_games = []
+        offset = 0
+        limit = 500
+
+        while True:
             results = self._api_call("games", (
-                f'search "{name}";'
                 "fields name,rating,total_rating,aggregated_rating,"
                 "genres,platforms,category,first_release_date;"
-                "limit 10;"
+                f"limit {limit};"
+                f"offset {offset};"
+                f"where platforms=[{PLATFORM_SWITCH}] & category=0;"
+                "sort rating desc;"
             ))
-
-            # If no results, try a shorter search (first 3-4 words)
             if not results:
-                words = name.split()
-                if len(words) > 4:
-                    shorter = " ".join(words[:4])
-                    results = self._api_call("games", (
-                        f'search "{shorter}";'
-                        "fields name,rating,total_rating,aggregated_rating,"
-                        "genres,platforms,category,first_release_date;"
-                        "limit 10;"
-                    ))
-        except Exception as e:
-            self._log("warning", f"IGDB search failed for '{name}': {e}")
-            return None
+                break
+            all_games.extend(results)
+            offset += limit
+            if len(results) < limit:
+                break
 
-        if not results:
-            self.cache[cache_key] = None
-            self._save_cache()
-            return None
+        self._batch_cache = all_games
+        self._log("info", f"IGDB: loaded {len(all_games)} Switch games")
+        return all_games
 
-        # Find best match by name similarity, preferring rated results on Switch
+    def _match_local(self, name, games_list):
+        """Find best match in a preloaded game list"""
         best_match = None
         best_score = 0
         search_lower = name.lower()
-        for game in results:
+
+        for game in games_list:
             game_name = game.get("name", "")
             score = SequenceMatcher(None, search_lower, game_name.lower()).ratio()
-
-            # Bonus for exact name match
-            if game_name.lower() == search_lower:
+            if search_lower == game_name.lower():
                 score += 0.5
-
-            # Bonus for having a rating
-            has_rating = game.get("rating") or game.get("total_rating")
-            if has_rating:
+            if game.get("rating") or game.get("total_rating"):
                 score += 0.1
-
-            # Bonus for Switch platform
-            if PLATFORM_SWITCH in game.get("platforms", []):
-                score += 0.1
-
             if score > best_score:
                 best_score = score
                 best_match = game
 
-        if best_match and best_score < 0.35:
-            best_match = None
-
-        self.cache[cache_key] = best_match
-        self._save_cache()
+        if best_match and best_score < 0.4:
+            return None
         return best_match
+
+    def search_game(self, name):
+        """Search IGDB for a game by name, using local batch cache if available"""
+        cache_key = name.lower().strip()
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+
+        game = None
+
+        # Try local batch cache first (fast)
+        if self._batch_cache is not None:
+            game = self._match_local(name, self._batch_cache)
+
+        # Fall back to API search
+        if game is None:
+            try:
+                results = self._api_call("games", (
+                    f'search "{name}";'
+                    "fields name,rating,total_rating,aggregated_rating,"
+                    "genres,platforms,category,first_release_date;"
+                    "limit 10;"
+                ))
+                if not results:
+                    words = name.split()
+                    if len(words) > 4:
+                        shorter = " ".join(words[:4])
+                        results = self._api_call("games", (
+                            f'search "{shorter}";'
+                            "fields name,rating,total_rating,aggregated_rating,"
+                            "genres,platforms,category,first_release_date;"
+                            "limit 10;"
+                        ))
+                if results:
+                    game = self._match_local(name, results)
+            except Exception as e:
+                self._log("warning", f"IGDB search failed for '{name}': {e}")
+
+        self.cache[cache_key] = game
+        self._save_cache()
+        return game
 
     def get_game_rating(self, name):
         """Get rating for a game, return 0-100 or None"""
@@ -295,6 +328,9 @@ def filter_game_dict(game_dict, igdb_client, config):
     exclude_shovelware = config.get("igdb_exclude_shovelware", True)
     switch_only = config.get("igdb_switch_only", True)
     exclude_multi = config.get("igdb_exclude_multi_platform", False)
+
+    # Preload Switch game library for fast local matching
+    igdb_client.preload_switch_games()
 
     enriched = {}
     filtered_count = 0
