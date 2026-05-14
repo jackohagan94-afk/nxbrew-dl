@@ -141,6 +141,20 @@ async def api_download(request: Request):
 
     def worker():
         global _download_state, _games_cache
+        dead_hosts = set()
+        shared_jd = None
+
+        # Pre-connect JDownloader once
+        try:
+            import myjdapi
+            jd = myjdapi.Myjdapi()
+            jd.set_app_key("nxbrewdl")
+            jd.connect(cfg["jd_user"], cfg["jd_pass"])
+            shared_jd = jd.get_device(cfg["jd_device"])
+            _download_state["log"].append("JD2: connected")
+        except Exception as e:
+            _download_state["log"].append(f"JD2: FAILED - {e}")
+
         for i, url in enumerate(game_urls):
             game_name = url.split("/")[-2].replace("-", " ").title()
             _download_state["log"].append(f"[{i+1}/{len(game_urls)}] {game_name}")
@@ -162,7 +176,8 @@ async def api_download(request: Request):
                     result = {"ok": False, "error": "timeout"}
                     def run_dl():
                         try:
-                            nx = CartDL(to_download={game_name: alt_url}, user_config=dict(cfg))
+                            nx = CartDL(to_download={game_name: alt_url}, user_config=dict(cfg),
+                                       jd_device=shared_jd, dead_hosts=dead_hosts)
                             nx.run()
                             result["ok"] = True
                         except Exception as e:

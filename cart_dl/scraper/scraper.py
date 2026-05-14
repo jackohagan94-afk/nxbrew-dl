@@ -71,6 +71,8 @@ class CartDL:
         user_config=None,
         user_cache=None,
         logger=None,
+        jd_device=None,
+        dead_hosts=None,
     ):
         """Handles downloading files
 
@@ -138,19 +140,19 @@ class CartDL:
         self.logger = logger
 
         # Set up JDownloader
-        self.logger.info("Connecting to JDownloader")
-        jd = myjdapi.Myjdapi()
-        jd.set_app_key("CartDLdl")
-
-        jd.connect(self.user_config["jd_user"], self.user_config["jd_pass"])
-
-        jd_device_name = self.user_config["jd_device"]
-
-        # Redact the device name
-        self.logger.update_redact_filter(jd_device_name)
-
-        self.logger.info(f"Connecting to device {jd_device_name}")
-        self.jd_device = jd.get_device(jd_device_name)
+        self.dead_hosts = dead_hosts or set()
+        if jd_device is not None:
+            self.jd_device = jd_device
+            self.logger.info("Using shared JDownloader connection")
+        else:
+            self.logger.info("Connecting to JDownloader")
+            jd = myjdapi.Myjdapi()
+            jd.set_app_key("CartDLdl")
+            jd.connect(self.user_config["jd_user"], self.user_config["jd_pass"])
+            jd_device_name = self.user_config["jd_device"]
+            self.logger.update_redact_filter(jd_device_name)
+            self.logger.info(f"Connecting to device {jd_device_name}")
+            self.jd_device = jd.get_device(jd_device_name)
 
         # Discord stuff
         discord_url = self.user_config.get("discord_url", "")
@@ -630,6 +632,11 @@ class CartDL:
             if dl_site not in dl_dict:
                 continue
 
+            # Skip known dead hosts in this batch
+            if dl_site in self.dead_hosts:
+                self.logger.info(f"\t\tSkipping {dl_site} (dead this batch)")
+                continue
+
             dl_links = dl_dict[dl_site]
             self.logger.info(f"\t\tTrying {dl_site}: {len(dl_links)} link(s)")
 
@@ -658,7 +665,8 @@ class CartDL:
                         self.logger.warning(f"\t\t\t{dl_site} link dead (HTTP {h.status_code}), skipping")
                         continue
                 except Exception:
-                    self.logger.warning(f"\t\t\t{site} link unreachable, skipping")
+                    self.logger.warning(f"\t\t\t{dl_site} link unreachable, skipping")
+                    self.dead_hosts.add(dl_site)
                     continue
 
                 self.logger.update_redact_filter(d_final)
