@@ -134,9 +134,13 @@ async def api_download(request: Request):
     if not game_urls:
         raise HTTPException(400, "No games specified")
     if _download_state["running"]:
-        raise HTTPException(409, "Download already in progress")
+        # Auto-reset stale state older than 60s
+        if time.time() - _download_state.get("_started", 0) > 60:
+            _download_state = {"running": False, "current": 0, "total": 0, "game": "", "log": []}
+        else:
+            raise HTTPException(409, "Download already in progress")
 
-    _download_state = {"running": True, "current": 0, "total": len(game_urls), "game": "", "log": []}
+    _download_state = {"running": True, "current": 0, "total": len(game_urls), "game": "", "log": [], "_started": time.time()}
     cfg = get_user_config()
 
     def worker():

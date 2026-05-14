@@ -658,19 +658,8 @@ class CartDL:
                 else:
                     d_final = d
 
-                # Quick liveness check
-                try:
-                    h = cffi_req.head(d_final, impersonate="chrome", timeout=10, allow_redirects=True)
-                    if h.status_code >= 400 and h.status_code != 405:
-                        self.logger.warning(f"\t\t\t{dl_site} link dead (HTTP {h.status_code}), skipping")
-                        continue
-                except Exception:
-                    self.logger.warning(f"\t\t\t{dl_site} link unreachable, skipping")
-                    self.dead_hosts.add(dl_site)
-                    continue
-
                 self.logger.update_redact_filter(d_final)
-                self.logger.info(f"\t\t\tAdding {d_final[:80]}")
+                self.logger.info(f"\t\t\t{dl_site}: {d_final[:80]}")
                 alive_links.append(d_final)
 
         # If we found any alive links, add them all in one package
