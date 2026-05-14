@@ -6,10 +6,10 @@ from bs4 import BeautifulSoup
 
 from .regex_tools import get_game_name, check_has_filetype, parse_languages
 
-# Known CartDL domains and their preferred impersonation profiles
+# Known nxbrew domains and their preferred impersonation profiles
 DOMAIN_IMPERSONATION = {
-    "CartDL.me": "safari15_5",
-    "CartDL.net": "chrome",
+    "nxbrew.me": "safari15_5",
+    "nxbrew.net": "chrome",
 }
 
 # Alternative domains with known game indices
@@ -205,22 +205,22 @@ def _parse_az_listing(soup, general_config, regex_config, game_dict):
 def get_game_dict(
     general_config,
     regex_config,
-    CartDL_url,
+    source_url,
 ):
     """Download the game index from primary and alternative domains
 
     Args:
         general_config (dict): General configuration
         regex_config (dict): Regex configuration
-        CartDL_url (string): Primary CartDL URL
+        source_url (string): Primary ROM source URL
     """
 
     game_dict = {}
 
     nsp_xci_variations = regex_config["nsp_variations"] + regex_config["xci_variations"]
 
-    # 1. Try primary domain: {CartDL_url}/game-index/ (AlphaListing format)
-    url = urljoin(CartDL_url, "game-index/")
+    # 1. Try primary domain: {source_url}/game-index/ (AlphaListing format)
+    url = urljoin(source_url, "game-index/")
     game_html = get_html_page(url, cache_filename="game_index_primary.html")
 
     if not _parse_az_listing(game_html, general_config, regex_config, game_dict):
@@ -228,7 +228,7 @@ def get_game_dict(
         index = game_html.find("div", {"id": "easyindex-index"})
         if index is None:
             # Try li entries in entry-content
-            _parse_li_entries(game_html, CartDL_url, general_config, regex_config, game_dict)
+            _parse_li_entries(game_html, source_url, general_config, regex_config, game_dict)
         else:
             for item in index.find_all("li"):
                 long_name = item.text

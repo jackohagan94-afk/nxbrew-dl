@@ -59,7 +59,7 @@ The CartDL.net site replaced its old `div#easyindex-index > li` structure with a
 - URL validation in the GUI now uses `curl_cffi` with impersonation for connectivity checks.
 
 ### Configuration
-Set `CartDL_url` in `config.yml` to `https://CartDL.net`. Alternative domains are configured in `cart_dl/util/html_tools.py` (`ALTERNATIVE_INDICES` list).
+Set `source_url` in `config.yml` to your primary ROM source (e.g. `https://nxbrew.net`).
 
 ## IGDB Integration (NEW)
 

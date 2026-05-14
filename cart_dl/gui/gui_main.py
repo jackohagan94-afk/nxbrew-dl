@@ -322,17 +322,17 @@ class MainWindow(QMainWindow):
     def get_game_dict(self):
         """Get game dictionary from CartDL A-Z page"""
 
-        if "CartDL" not in self.user_config.get("CartDL_url", ""):
+        if not self.user_config.get("source_url", ""):
             self.logger.warning(
-                "CartDL URL not found. Enter one and refresh the game list!"
+                "Source URL not found. Enter one and refresh the game list!"
             )
             return False
 
         try:
-            _ = requests.get(self.user_config["CartDL_url"], impersonate="chrome")
+            _ = requests.get(self.user_config["source_url"], impersonate="chrome")
         except (requests.exceptions.SSLError, requests.exceptions.MissingSchema) as e:
             self.logger.warning(
-                "Error found in CartDL URL! Enter one that works and refresh the game list!"
+                "Error found in Source URL! Enter one that works and refresh the game list!"
             )
             return False
 
@@ -340,7 +340,7 @@ class MainWindow(QMainWindow):
             self.game_dict = get_game_dict(
                 general_config=self.general_config,
                 regex_config=self.regex_config,
-                CartDL_url=self.user_config["CartDL_url"],
+                source_url=self.user_config["source_url"],
             )
         except Exception as e:
             self.logger.warning(
@@ -430,7 +430,7 @@ class MainWindow(QMainWindow):
         """Apply read in config to the GUI"""
 
         text_fields = {
-            "CartDL_url": self.ui.lineEditCartDLURL,
+            "source_url": self.ui.lineEditCartDLURL,
             "download_dir": self.ui.lineEditDownloadDir,
             "jd_device": self.ui.lineEditJDownloaderDevice,
             "jd_user": self.ui.lineEditJDownloaderUser,
@@ -494,7 +494,7 @@ class MainWindow(QMainWindow):
         """Save config to file"""
 
         text_fields = {
-            "CartDL_url": self.ui.lineEditCartDLURL.text(),
+            "source_url": self.ui.lineEditCartDLURL.text(),
             "download_dir": self.ui.lineEditDownloadDir.text(),
             "jd_device": self.ui.lineEditJDownloaderDevice.text(),
             "jd_user": self.ui.lineEditJDownloaderUser.text(),
