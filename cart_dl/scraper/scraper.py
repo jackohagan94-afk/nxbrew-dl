@@ -651,7 +651,7 @@ class CartDL:
                 # Quick liveness check
                 try:
                     h = cffi_req.head(d_final, impersonate="chrome", timeout=10, allow_redirects=True)
-                    if h.status_code >= 400:
+                    if h.status_code >= 400 and h.status_code != 405:
                         self.logger.warning(f"\t\t\t{dl_site} link dead (HTTP {h.status_code}), skipping")
                         continue
                 except Exception:
