@@ -143,7 +143,7 @@ class IGDBClient:
                 "genres,platforms,category,first_release_date;"
                 f"limit {limit};"
                 f"offset {offset};"
-                f"where platforms=[{PLATFORM_SWITCH}] & category != 1;"
+                f"where platforms=[{PLATFORM_SWITCH}] & (category = 0 | category = null);"
                 "sort rating desc;"
             ))
             if not results:
