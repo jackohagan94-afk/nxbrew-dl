@@ -145,15 +145,10 @@ class IGDBClient:
         if self._batch_cache is not None:
             return self._batch_cache
 
-        # If precache is loaded, convert to batch format
+        # If precache is loaded, just use it directly (O(1) lookups, no matching needed)
         if self._precache is not None:
-            self._batch_cache = [
-                {"name": p["n"], "rating": p.get("r"), "total_rating": p.get("r"),
-                 "genres": p.get("g", []), "platforms": p.get("p", [])}
-                for p in self._precache.values()
-            ]
-            self._log("info", f"IGDB: loaded {len(self._batch_cache)} games from precache")
-            return self._batch_cache
+            self._log("info", f"IGDB: using precache with {len(self._precache)} games")
+            return self._precache  # Return the dict itself, search_game handles it
 
         if not self.client_id:
             self._log("warning", "IGDB: no API key and no precache available")
