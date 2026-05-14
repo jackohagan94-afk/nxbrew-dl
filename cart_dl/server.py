@@ -37,6 +37,14 @@ def save_user_config(config):
     save_yml(CONFIG_FILE, config)
 
 
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    template = Path(os.path.join(MOD_DIR, "templates", "index.html"))
+    if template.exists():
+        return template.read_text(encoding="utf-8")
+    return HTMLResponse("<h1>cart-dl server running</h1>")
+
+
 def _build_game_cache():
     """Build the sorted game cache from the game dict"""
     global _game_dict, _games_cache
