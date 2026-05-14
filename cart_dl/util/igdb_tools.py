@@ -50,7 +50,24 @@ DEFAULT_MIN_RATING = 50
 class IGDBClient:
     """IGDB API client using Twitch OAuth"""
 
-    def __init__(self, client_id, client_secret, cache_file=None, logger=None):
+    _precache = None
+
+    @classmethod
+    def load_precache(cls, data=None):
+        """Load pre-cached IGDB data (call once at startup)"""
+        if data:
+            cls._precache = data
+            return
+        try:
+            import os, json
+            path = os.path.join(os.path.dirname(__file__), "..", "configs", "igdb_precache.json")
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    cls._precache = json.load(f)
+        except Exception:
+            pass
+
+    def __init__(self, client_id=None, client_secret=None, cache_file=None, logger=None):
         self.client_id = client_id
         self.client_secret = client_secret
         self.access_token = None
@@ -124,13 +141,23 @@ class IGDBClient:
         return resp.json()
 
     def preload_switch_games(self):
-        """Batch-load all Switch games from IGDB for fast local matching
-
-        Returns:
-            list: All Switch game entries with name, rating, genres, platforms
-        """
+        """Batch-load all Switch games. Uses precache if available, else API"""
         if self._batch_cache is not None:
             return self._batch_cache
+
+        # If precache is loaded, convert to batch format
+        if self._precache is not None:
+            self._batch_cache = [
+                {"name": p["n"], "rating": p.get("r"), "total_rating": p.get("r"),
+                 "genres": p.get("g", []), "platforms": p.get("p", [])}
+                for p in self._precache.values()
+            ]
+            self._log("info", f"IGDB: loaded {len(self._batch_cache)} games from precache")
+            return self._batch_cache
+
+        if not self.client_id:
+            self._log("warning", "IGDB: no API key and no precache available")
+            return []
 
         self._log("info", "IGDB: batch loading Switch game library...")
         all_games = []
@@ -179,20 +206,32 @@ class IGDBClient:
         return best_match
 
     def search_game(self, name):
-        """Search IGDB for a game by name, using local batch cache if available"""
+        """Search IGDB for a game by name, using precache and batch cache"""
         cache_key = name.lower().strip()
         if cache_key in self.cache:
             return self.cache[cache_key]
 
         game = None
 
-        # Try local batch cache first (fast)
-        if self._batch_cache is not None:
+        # 1. Try static precache (instant, no API needed)
+        if self._precache is not None:
+            p = self._precache.get(cache_key)
+            if p:
+                game = {
+                    "name": p["n"],
+                    "rating": p.get("r"),
+                    "total_rating": p.get("r"),
+                    "genres": p.get("g", []),
+                    "platforms": p.get("p", []),
+                }
+
+        # 2. Try local batch cache (fast)
+        if game is None and self._batch_cache is not None:
             game = self._match_local(name, self._batch_cache)
 
-        # Fall back to API search
-        if game is None:
-            try:
+        # 3. Fall back to API search (requires auth)
+        if game is None and self.client_id:
+            try:                                 
                 results = self._api_call("games", (
                     f'search "{name}";'
                     "fields name,rating,total_rating,aggregated_rating,"

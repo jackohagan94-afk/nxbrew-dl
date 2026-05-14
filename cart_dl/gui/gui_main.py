@@ -49,6 +49,9 @@ from ..util import (
 )
 from ..util.igdb_tools import IGDBClient, filter_game_dict, DEFAULT_MIN_RATING
 
+# Load IGDB precache at import time (bundled with exe)
+IGDBClient.load_precache()
+
 
 def open_game_url(item):
     """If a row title is clicked, open the associated URL"""
@@ -303,13 +306,23 @@ class MainWindow(QMainWindow):
         spacer_idx += 1
 
     def _get_igdb_client(self):
-        """Lazy-initialize the IGDB client"""
+        """Lazy-initialize the IGDB client (works without API key via precache)"""
         if self.igdb_client is not None:
             return self.igdb_client
 
         client_id = self.user_config.get("igdb_client_id", "")
         client_secret = self.user_config.get("igdb_client_secret", "")
-        if not client_id or not client_secret:
+
+        try:
+            self.igdb_client = IGDBClient(
+                client_id=client_id or None,
+                client_secret=client_secret or None,
+                cache_file=self.igdb_cache_file,
+                logger=self.logger,
+            )
+            return self.igdb_client
+        except Exception as e:
+            self.logger.warning(f"IGDB: failed to initialize: {e}")
             return None
 
         try:
