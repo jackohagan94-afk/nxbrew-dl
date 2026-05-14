@@ -180,7 +180,9 @@ async def api_download(request: Request):
                     result = {"ok": False, "error": "timeout"}
                     def run_dl():
                         try:
-                            nx = CartDL(to_download={game_name: alt_url}, user_config=dict(cfg),
+                            cfg_copy = dict(cfg)
+                            cfg_copy["log_dir"] = None
+                            nx = CartDL(to_download={game_name: alt_url}, user_config=cfg_copy,
                                        jd_device=shared_jd, dead_hosts=dead_hosts)
                             nx.run()
                             result["ok"] = True
