@@ -78,6 +78,7 @@ async def api_games():
             "has_dlc": info.get("has_dlc", False),
             "igdb_match": info.get("igdb_match", False),
             "other_platforms": info.get("igdb_other_platforms", []),
+            "platform": "switch",
         })
 
     games.sort(key=lambda g: g["rating"] or 0, reverse=True)

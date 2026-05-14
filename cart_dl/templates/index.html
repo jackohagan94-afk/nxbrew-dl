@@ -65,6 +65,27 @@ footer{padding:6px 16px;background:var(--bg2);border-top:1px solid var(--border)
   <button onclick="refreshGames()">🔄 Refresh</button>
   <button onclick="toggleSettings()">⚙</button>
 </header>
+<div id="platform-bar" style="padding:4px 16px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;font-size:11px">
+  <b style="color:var(--fg2);margin-right:4px">Platforms:</b>
+  <label><input type="checkbox" checked onchange="filterPlatforms()" value="switch"> Switch</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="wiiu"> WiiU</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="wii"> Wii</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="gc"> GC</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="3ds"> 3DS</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="ds"> DS</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="gba"> GBA</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="n64"> N64</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="snes"> SNES</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="nes"> NES</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="ps4"> PS4</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="ps3"> PS3</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="ps2"> PS2</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="ps1"> PS1</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="psp"> PSP</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="xbox360"> X360</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="dc"> DC</label>
+  <label><input type="checkbox" onchange="filterPlatforms()" value="genesis"> Genesis</label>
+</div>
 <div class="settings-panel" id="settings">
   <label>Source: <input id="cfg-source" placeholder="https://nxbrew.net" size="30"></label>
   <label>Min Rating: <input id="cfg-rating" type="number" min="0" max="100" value="50" size="4"></label>
@@ -123,6 +144,33 @@ function updateStats() {
   let rated = allGames.filter(g => g.rating !== null).length;
   document.getElementById('stat-rated').textContent = `Rated: ${rated}`;
   document.getElementById('stat-visible').textContent = `Showing: ${filtered.length}`;
+}
+
+function filter() {
+  applyAllFilters();
+}
+function filterPlatforms() { applyAllFilters(); }
+
+function getCheckedPlatforms() {
+  let cbs = document.querySelectorAll('#platform-bar input[type=checkbox]');
+  let active = new Set();
+  cbs.forEach(cb => { if (cb.checked) active.add(cb.value); });
+  return active;
+}
+
+function applyAllFilters() {
+  let q = document.getElementById('search').value.toLowerCase();
+  let platforms = getCheckedPlatforms();
+  filtered = [];
+  for (let i = 0; i < allGames.length; i++) {
+    let g = allGames[i];
+    let nameMatch = !q || (g.name||'').toLowerCase().includes(q) || (g.long_name||'').toLowerCase().includes(q);
+    let platMatch = platforms.has(g.platform || 'switch');
+    if (nameMatch && platMatch) filtered.push(i);
+  }
+  if (sortCol !== null) sort();
+  updateStats();
+  render();
 }
 
 function filter() {
