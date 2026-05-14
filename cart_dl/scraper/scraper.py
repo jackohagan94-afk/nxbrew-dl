@@ -248,6 +248,10 @@ class CartDL:
             langs = []
         langs.sort()
 
+        # If no languages found at all, assume all languages (nswgame)
+        if len(langs) == 0:
+            langs = ["All"]
+
         self.logger.info(f"Found languages across all releases:")
         for l in langs:
             self.logger.info(f"\t{l}")
@@ -711,10 +715,12 @@ class CartDL:
                 break
 
         if dl_site is None:
-            raise ValueError("Expecting dl_site to be defined")
+            self.logger.warning("No supported download site found, skipping")
+            return True
 
         if package_id is None:
-            raise ValueError("Expecting the package_id to be defined")
+            self.logger.warning(f"No package was created (all providers may be unsupported)")
+            return True
 
         # Finally, we need to pull the links out as well to move them
         # to the download list

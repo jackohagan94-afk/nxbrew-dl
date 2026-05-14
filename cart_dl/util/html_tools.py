@@ -295,6 +295,6 @@ def get_thumb_url(soup):
     """
 
     img = soup.find("meta", {"property": "og:image"})
-    url = img["content"]
-
-    return url
+    if img is None:
+        return ""
+    return img["content"]

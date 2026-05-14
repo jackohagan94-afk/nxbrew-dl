@@ -80,9 +80,8 @@ def get_dl_dict(
 def get_dl_dict_nswgame(soup, dl_sites, dl_mappings):
     """Parse download links from nswgame.com game pages
 
-    nswgame pages have links scattered in <a> tags rather than structured
-    in strong/p elements. We extract all links to known hosts and categorize
-    by file type (NSP/XCI/Update/DLC) based on URL text patterns.
+    nswgame pages have links scattered in <a> tags. We extract and categorize
+    by file type based on URL text patterns.
 
     Args:
         soup (bs4.BeautifulSoup): soup object to parse
@@ -91,7 +90,6 @@ def get_dl_dict_nswgame(soup, dl_sites, dl_mappings):
     """
     dl_dict = {"release_1": {"regions": ["All"], "languages": ["All"]}}
 
-    # Known file host domains
     host_patterns = {
         "1Fichier": ["1fichier"],
         "FreeDL": ["frdl"],
@@ -107,49 +105,46 @@ def get_dl_dict_nswgame(soup, dl_sites, dl_mappings):
     if entry is None:
         entry = soup
 
+    seen = set()
     for a in entry.find_all("a", href=True):
         href = a["href"]
-        text = a.get_text(strip=True).lower()
+        url_lower = href.lower()
 
-        # Skip social media, comments, login links
-        if any(s in href.lower() for s in ["twitter.com", "facebook.com", "#comment", "wp-login", "share="]):
+        if any(s in url_lower for s in ["twitter.com", "facebook.com", "#comment", "wp-login", "share=", "whatsapp"]):
             continue
 
-        url_lower = href.lower()
         for site_name, patterns in host_patterns.items():
             if any(p in url_lower for p in patterns):
-                # Determine file type from the URL or surrounding text
-                url_text = href + " " + text
-                dl_key = None
-                if "dlc" in url_text or "dlc" in url_text:
+                # Categorize by URL patterns
+                dl_key = "base_game_nsp"
+                full_name = "Base Game NSP"
+
+                if "dlc" in url_lower or "(dlc)" in url_lower:
                     dl_key = "dlc"
-                elif "update" in url_text:
+                    full_name = "DLC"
+                elif "update" in url_lower or "(update" in url_lower:
                     dl_key = "update"
-                elif "xci" in url_text and "nsp" not in url_text:
+                    full_name = "Update"
+                elif "xci" in url_lower and "nsp" not in url_lower:
                     dl_key = "base_game_xci"
-                elif "nsp" in url_text:
-                    dl_key = "base_game_nsp"
-                else:
-                    dl_key = "base_game_nsp"
+                    full_name = "Base Game XCI"
 
                 if dl_key not in dl_dict["release_1"]:
                     dl_dict["release_1"][dl_key] = []
-                
-                # Check if we already have this link
-                existing = False
-                for entry_info in dl_dict["release_1"].get(dl_key, []):
-                    if site_name in entry_info:
-                        if href in entry_info[site_name]:
-                            existing = True
-                            break
-                if existing:
-                    break
 
-                dl_info = {
-                    "full_name": f"{dl_key.replace('_',' ').title()}",
-                    site_name: [href],
-                }
-                dl_dict["release_1"][dl_key].append(dl_info)
+                # Check if this is a new file type group or site
+                found = False
+                for info in dl_dict["release_1"][dl_key]:
+                    if site_name in info:
+                        info[site_name].append(href)
+                        found = True
+                        break
+
+                if not found:
+                    dl_dict["release_1"][dl_key].append({
+                        "full_name": full_name,
+                        site_name: [href],
+                    })
                 break
 
     return dl_dict
