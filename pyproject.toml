@@ -56,9 +56,9 @@ docs = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/bbtufty/nxbrew-dl"
-"Bug Reports" = "https://github.com/bbtufty/nxbrew-dl/issues"
-"Source" = "https://github.com/bbtufty/nxbrew-dl"
+"Homepage" = "https://git.johagan.au/jack/cart-dl"
+"Bug Reports" = "https://git.johagan.au/jack/cart-dl/issues"
+"Source" = "https://git.johagan.au/jack/cart-dl"
 
 [tool.setuptools.packages.find]
 exclude = ["log/*"]

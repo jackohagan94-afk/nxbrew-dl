@@ -143,7 +143,12 @@ class MainWindow(QMainWindow):
         # Help menu buttons
         documentation = self.ui.actionDocumentation
         documentation.triggered.connect(
-            lambda: open_url("https://cart-dl.readthedocs.io")
+            lambda: open_url("https://git.johagan.au/jack/cart-dl")
+        )
+
+        issues = self.ui.actionIssues
+        issues.triggered.connect(
+            lambda: open_url("https://git.johagan.au/jack/cart-dl/issues")
         )
 
         issues = self.ui.actionIssues
