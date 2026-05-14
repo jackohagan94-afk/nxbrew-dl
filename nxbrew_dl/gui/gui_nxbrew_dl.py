@@ -136,9 +136,6 @@ class MainWindow(QMainWindow):
         else:
             self.user_cache = {}
 
-        # Do an initial load of the config
-        self.load_config()
-
         # Set up the worker threads for later
         self.nxbrew_thread = None
         self.nxbrew_worker = None
@@ -177,195 +174,14 @@ class MainWindow(QMainWindow):
         self.game_table.setHorizontalHeaderItem(6, QTableWidgetItem("Rating"))
         self.game_table.horizontalHeaderItem(6).setToolTip("IGDB Rating")
 
-        # Set up IGDB config widgets dynamically
+        # Set up IGDB config widgets dynamically (must be before load_config)
         self._setup_igdb_widgets()
 
         # Initialize IGDB client (lazy, created on first use)
         self.igdb_client = None
         self.igdb_cache_file = os.path.join(os.getcwd(), "igdb_cache.json")
 
-        # Add in refresh option
-        refresh_button = self.ui.pushButtonRefresh
-        refresh_button.clicked.connect(self.load_table)
-
-        # Set up the table so links will open the webpages
-        self.game_table.itemDoubleClicked.connect(open_game_url)
-
-        # Set up the search bar
-        self.search_bar = self.ui.lineEditSearch
-        self.search_bar.textChanged.connect(self.update_display)
-
-        self.load_table()
-
-    def setup_update_notification(
-        self,
-        new_version_available,
-        url,
-    ):
-        """Create a message box to open up to the latest GitHub release"""
-
-        if not new_version_available:
-            return None
-
-        # Open up a dialogue box to go to the webpage
-        update_box = QMessageBox()
-        reply = update_box.question(
-            self,
-            "Version update!",
-            "Open latest GitHub release?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            self.logger.info("Opening GitHub, and closing down")
-            open_url(url)
-            sys.exit()
-
-        return update_box
-
-    def _setup_igdb_widgets(self):
-        """Dynamically add IGDB config widgets to the config panel"""
-
-        layout = self.ui.verticalLayoutConfig
-
-        # Insert before the Discord URL (find it by traversing backwards)
-        spacer_idx = layout.indexOf(self.ui.verticalSpacer_5)
-
-        # IGDB section label
-        self.labelIGDB = QLabel("IGDB Filtering:", self.ui.centralwidget)
-        self.labelIGDB.setObjectName("labelIGDB")
-        layout.insertWidget(spacer_idx, self.labelIGDB)
-        spacer_idx += 1
-
-        # IGDB Client ID
-        self.lineEditIGDBClientID = QLineEdit(self.ui.centralwidget)
-        self.lineEditIGDBClientID.setObjectName("lineEditIGDBClientID")
-        self.lineEditIGDBClientID.setPlaceholderText("Twitch Client ID")
-        self.lineEditIGDBClientID.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed))
-        layout.insertWidget(spacer_idx, self.lineEditIGDBClientID)
-        spacer_idx += 1
-
-        # IGDB Client Secret
-        self.lineEditIGDBClientSecret = QLineEdit(self.ui.centralwidget)
-        self.lineEditIGDBClientSecret.setObjectName("lineEditIGDBClientSecret")
-        self.lineEditIGDBClientSecret.setPlaceholderText("Twitch Client Secret")
-        self.lineEditIGDBClientSecret.setEchoMode(QLineEdit.EchoMode.Password)
-        self.lineEditIGDBClientSecret.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed))
-        layout.insertWidget(spacer_idx, self.lineEditIGDBClientSecret)
-        spacer_idx += 1
-
-        # Minimum rating spinbox
-        self.spinBoxMinRating = QSpinBox(self.ui.centralwidget)
-        self.spinBoxMinRating.setObjectName("spinBoxMinRating")
-        self.spinBoxMinRating.setRange(0, 100)
-        self.spinBoxMinRating.setValue(DEFAULT_MIN_RATING)
-        self.spinBoxMinRating.setPrefix("Min Rating: ")
-        self.spinBoxMinRating.setSuffix("/100")
-        self.spinBoxMinRating.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed))
-        layout.insertWidget(spacer_idx, self.spinBoxMinRating)
-        spacer_idx += 1
-
-        # IGDB filter checkboxes
-        self.checkBoxIGDBVN = QCheckBox("Exclude Visual Novels", self.ui.centralwidget)
-        self.checkBoxIGDBVN.setObjectName("checkBoxIGDBVN")
-        self.checkBoxIGDBVN.setChecked(True)
-        layout.insertWidget(spacer_idx, self.checkBoxIGDBVN)
-        spacer_idx += 1
-
-        self.checkBoxIGDBShovelware = QCheckBox("Exclude Shovelware", self.ui.centralwidget)
-        self.checkBoxIGDBShovelware.setObjectName("checkBoxIGDBShovelware")
-        self.checkBoxIGDBShovelware.setChecked(True)
-        layout.insertWidget(spacer_idx, self.checkBoxIGDBShovelware)
-        spacer_idx += 1
-
-        self.checkBoxSwitchOnly = QCheckBox("Switch Releases Only", self.ui.centralwidget)
-        self.checkBoxSwitchOnly.setObjectName("checkBoxSwitchOnly")
-        self.checkBoxSwitchOnly.setChecked(True)
-        layout.insertWidget(spacer_idx, self.checkBoxSwitchOnly)
-        spacer_idx += 1
-
-        self.checkBoxExcludeMultiPlatform = QCheckBox("Exclude Multi-Platform Games", self.ui.centralwidget)
-        self.checkBoxExcludeMultiPlatform.setObjectName("checkBoxExcludeMultiPlatform")
-        self.checkBoxExcludeMultiPlatform.setChecked(False)
-        self.checkBoxExcludeMultiPlatform.setToolTip("Filter out games also available on PC, Xbox, PlayStation")
-        layout.insertWidget(spacer_idx, self.checkBoxExcludeMultiPlatform)
-        spacer_idx += 1
-
-    def _get_igdb_client(self):
-        """Lazy-initialize the IGDB client"""
-        if self.igdb_client is not None:
-            return self.igdb_client
-
-        client_id = self.user_config.get("igdb_client_id", "")
-        client_secret = self.user_config.get("igdb_client_secret", "")
-        if not client_id or not client_secret:
-            return None
-
-        try:
-            self.igdb_client = IGDBClient(
-                client_id=client_id,
-                client_secret=client_secret,
-                cache_file=self.igdb_cache_file,
-                logger=self.logger,
-            )
-            return self.igdb_client
-        except Exception as e:
-            self.logger.warning(f"IGDB: failed to initialize: {e}")
-            return None
-
-    def get_game_dict(self):
-        """Get game dictionary from NXBrew A-Z page"""
-
-        if "nxbrew" not in self.user_config.get("nxbrew_url", ""):
-            self.logger.warning(
-                "NXBrew URL not found. Enter one and refresh the game list!"
-            )
-            return False
-
-        try:
-            _ = requests.get(self.user_config["nxbrew_url"], impersonate="chrome")
-        except (requests.exceptions.SSLError, requests.exceptions.MissingSchema) as e:
-            self.logger.warning(
-                "Error found in NXBrew URL! Enter one that works and refresh the game list!"
-            )
-            return False
-
-        try:
-            self.game_dict = get_game_dict(
-                general_config=self.general_config,
-                regex_config=self.regex_config,
-                nxbrew_url=self.user_config["nxbrew_url"],
-            )
-        except Exception as e:
-            self.logger.warning(
-                "Error found retreiving game list, try another URL"
-            )
-            return False
-
-    def update_display(self, text):
-        """When using the search bar, show/hide rows
-
-        Args:
-            text (str): Text to filter out rows
-        """
-
-        for r in range(self.game_table.rowCount()):
-            r_text = self.game_table.item(r, 0).text()
-            if text.lower() in r_text.lower():
-                self.game_table.showRow(r)
-            else:
-                self.game_table.hideRow(r)
-
-    def update_progressbar_value(self, value):
-        self.nxbrew_worker.progress_bar.setValue(value)
-
-    def load_table(self):
-        """Load the game table, disable things until we're done"""
-
-        self.ui.centralwidget.setEnabled(False)
-
-        # Save and load the config
-        self.save_config()
+        # Do an initial load of the config
         self.load_config()
 
         self.game_dict = {}
