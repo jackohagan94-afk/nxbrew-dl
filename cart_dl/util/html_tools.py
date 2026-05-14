@@ -221,7 +221,7 @@ def get_game_dict(
 
     # 1. Try primary domain: {source_url}/game-index/ (AlphaListing format)
     url = urljoin(source_url, "game-index/")
-    game_html = get_html_page(url, cache_filename="game_index_primary.html")
+    game_html = get_html_page(url, cache=True, cache_filename="game_index_primary.html")
 
     if not _parse_az_listing(game_html, general_config, regex_config, game_dict):
         # Fallback: old easyindex-index format
@@ -256,7 +256,7 @@ def get_game_dict(
     # 2. Try alternative domains with known index paths
     for alt_domain, alt_path in ALTERNATIVE_INDICES:
         alt_url = urljoin(alt_domain, alt_path)
-        alt_html = get_html_page(alt_url, cache_filename=f"game_index_alt_{urlparse(alt_domain).hostname}.html")
+        alt_html = get_html_page(alt_url, cache=True, cache_filename=f"game_index_alt_{urlparse(alt_domain).hostname}.html")
         if "nswgame" in alt_domain:
             _parse_nswgame_index(alt_html, alt_domain, general_config, regex_config, game_dict)
         else:

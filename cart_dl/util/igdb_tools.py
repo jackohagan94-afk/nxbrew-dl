@@ -47,6 +47,14 @@ NOTABLE_PLATFORMS = {
 DEFAULT_MIN_RATING = 50
 
 
+def _normalize_key(s):
+    """Normalize a string for case/accent-insensitive matching"""
+    import unicodedata
+    s = s.lower().strip()
+    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
+    return s
+
+
 class IGDBClient:
     """IGDB API client using Twitch OAuth"""
 
@@ -59,11 +67,17 @@ class IGDBClient:
             cls._precache = data
             return
         try:
-            import os, json
+            import os, json, unicodedata
             path = os.path.join(os.path.dirname(__file__), "..", "configs", "igdb_precache.json")
             if os.path.exists(path):
-                with open(path, "r") as f:
-                    cls._precache = json.load(f)
+                with open(path, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                # Normalize keys: lowercase + strip diacritics for accent-insensitive matching
+                cls._precache = {}
+                for k, v in raw.items():
+                    nk = _normalize_key(k)
+                    if nk not in cls._precache or (v.get("r") and not cls._precache[nk].get("r")):
+                        cls._precache[nk] = v
         except Exception:
             pass
 
@@ -202,7 +216,7 @@ class IGDBClient:
 
     def search_game(self, name):
         """Search IGDB for a game by name, using precache and batch cache"""
-        cache_key = name.lower().strip()
+        cache_key = _normalize_key(name)
         if cache_key in self.cache:
             return self.cache[cache_key]
 
@@ -217,8 +231,15 @@ class IGDBClient:
                     "rating": p.get("r"),
                     "total_rating": p.get("r"),
                     "genres": p.get("g", []),
-                    "platforms": p.get("p", []),
                 }
+                # Handle both old (numeric IDs) and new (string names) platform formats
+                platforms_raw = p.get("p", [])
+                if platforms_raw and isinstance(platforms_raw[0], int):
+                    game["platforms"] = platforms_raw
+                else:
+                    # New format: "s" = on_switch boolean, "o" = other platform names
+                    game["platforms"] = [130] if p.get("s") else []
+                    game["_other_platforms"] = p.get("o", [])
 
         # 2. Try local batch cache (fast)
         if game is None and self._batch_cache is not None:
@@ -322,11 +343,14 @@ class IGDBClient:
                 is_shovelware = True
                 genre_names.append(SHOVELWARE_GENRES[gid])
 
-        # Map platform IDs to names
+        # Map platform IDs to names (or use precomputed from precache)
         other_platforms = []
-        for pid in platform_ids:
-            if pid != PLATFORM_SWITCH and pid in NOTABLE_PLATFORMS:
-                other_platforms.append(NOTABLE_PLATFORMS[pid])
+        if "_other_platforms" in game:
+            other_platforms = game["_other_platforms"]
+        else:
+            for pid in platform_ids:
+                if pid != PLATFORM_SWITCH and pid in NOTABLE_PLATFORMS:
+                    other_platforms.append(NOTABLE_PLATFORMS[pid])
 
         return {
             "rating": rating,
