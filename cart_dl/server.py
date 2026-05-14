@@ -140,19 +140,48 @@ async def api_download(request: Request):
     cfg = get_user_config()
 
     def worker():
-        global _download_state
+        global _download_state, _games_cache
         for i, url in enumerate(game_urls):
             game_name = url.split("/")[-2].replace("-", " ").title()
             _download_state["log"].append(f"[{i+1}/{len(game_urls)}] {game_name}")
             _download_state["current"] = i + 1
             _download_state["game"] = game_name
-            try:
-                nx = CartDL(to_download={game_name: url}, user_config=dict(cfg, log_dir=None))
-                nx.run()
-                nx.logger.close()
-                _download_state["log"].append(f"  OK: {game_name}")
-            except Exception as e:
-                _download_state["log"].append(f"  FAIL: {str(e)[:120]}")
+
+            # Find alternate URLs for same game across sources
+            alt_urls = [url]
+            if _games_cache:
+                for g in _games_cache:
+                    if g["url"] != url and g["name"].lower() == game_name.replace("-", " ").lower():
+                        alt_urls.append(g["url"])
+
+            downloaded = False
+            for alt_url in alt_urls:
+                src = alt_url.split("/")[2] if "//" in alt_url else "?"
+                try:
+                    import threading as thr
+                    result = {"ok": False, "error": "timeout"}
+                    def run_dl():
+                        try:
+                            nx = CartDL(to_download={game_name: alt_url}, user_config=dict(cfg))
+                            nx.run()
+                            result["ok"] = True
+                        except Exception as e:
+                            result["error"] = str(e)[:120]
+                    t = thr.Thread(target=run_dl, daemon=True)
+                    t.start()
+                    t.join(timeout=30)
+                    if t.is_alive():
+                        _download_state["log"].append(f"  TIMEOUT ({src})")
+                    elif result["ok"]:
+                        _download_state["log"].append(f"  OK ({src})")
+                        downloaded = True
+                        break
+                    else:
+                        _download_state["log"].append(f"  FAIL ({src}): {result['error']}")
+                except Exception as e:
+                    _download_state["log"].append(f"  FAIL ({src}): {str(e)[:120]}")
+            if not downloaded:
+                _download_state["log"].append(f"  ALL SOURCES FAILED")
         _download_state["running"] = False
 
     threading.Thread(target=worker, daemon=True).start()
@@ -162,6 +191,13 @@ async def api_download(request: Request):
 @app.get("/api/download/status")
 async def api_download_status():
     return JSONResponse(_download_state)
+
+
+@app.post("/api/download/reset")
+async def api_download_reset():
+    global _download_state
+    _download_state = {"running": False, "current": 0, "total": 0, "game": "", "log": []}
+    return JSONResponse({"status": "reset"})
 
 
 @app.get("/api/config")
