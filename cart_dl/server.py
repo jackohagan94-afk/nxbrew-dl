@@ -13,7 +13,11 @@ from .scraper.scraper import CartDL
 
 app = FastAPI(title="cart-dl", version="0.8.0")
 
-CONFIG_FILE = os.path.join(os.getcwd(), "config.yml")
+# Prefer config from exe directory, fall back to cwd
+_exe_dir = os.path.dirname(os.path.abspath(sys.executable)) if getattr(sys, 'frozen', False) else os.getcwd()
+CONFIG_FILE = os.path.join(_exe_dir, "config.yml")
+if not os.path.exists(CONFIG_FILE):
+    CONFIG_FILE = os.path.join(os.getcwd(), "config.yml")
 MOD_DIR = os.path.dirname(__file__)
 
 general_config = load_yml(os.path.join(MOD_DIR, "configs", "general.yml"))
