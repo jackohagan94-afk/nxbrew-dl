@@ -69,61 +69,49 @@ def _normalize_name(name):
     return n.strip()
 
 
-def _preload_minerva():
-    """Pre-parse Minerva torrent and IA file listings for all platforms"""
+def _preload_sources(platforms=None):
+    """Pre-parse Minerva directory listings and IA file listings for specific platforms"""
     global _minerva_file_cache, _archive_file_cache, _minerva_ready
-    from curl_cffi import requests as cffi_req
     from .sources.archive import ArchiveSource
+    from .sources.minerva import MinervaSource
 
-    _minerva_file_cache = {}
-    _archive_file_cache = {}
+    if platforms is None:
+        platforms = list(ALL_PLATFORMS.keys())
+
     ia = ArchiveSource(download_dir=".")
+    ms = MinervaSource(download_dir=".")
 
-    for platform_key, platform_data in ALL_PLATFORMS.items():
-        # Minerva torrents
-        torrent_sources = platform_data.get("sources", {}).get("torrent", [])
-        for src in torrent_sources:
-            if src.get("name") != "minerva":
-                continue
-            collection = src.get("collection", "")
-            if not collection:
-                continue
+    for platform_key in platforms:
+        platform_data = ALL_PLATFORMS.get(platform_key, {})
+
+        # Minerva directory listing (new API — no more collection torrents)
+        if platform_key not in _minerva_file_cache:
             try:
-                encoded = quote(f"Minerva_Myrient - {collection}.torrent")
-                torrent_url = f"{MINERVA_ASSETS}/{encoded}"
-                r = cffi_req.get(torrent_url, impersonate="chrome", timeout=30)
-                if r.status_code != 200:
-                    continue
-                files = _parse_torrent_files(r.content)
-                entries = []
-                for path, size in files:
-                    basename = os.path.basename(path)
-                    name_no_ext = os.path.splitext(basename)[0]
-                    name_no_ext = re.sub(r'\s*\(.*?\)', '', name_no_ext)
-                    name_no_ext = re.sub(r'\s*\[.*?\]', '', name_no_ext)
-                    entries.append((name_no_ext.strip(), path, size))
-                _minerva_file_cache[platform_key] = entries
+                files = ms.list_files(platform_key)
+                if files:
+                    _minerva_file_cache[platform_key] = files
             except Exception:
                 pass
 
         # Internet Archive collections
-        archive_sources = platform_data.get("sources", {}).get("archive", [])
-        for src in archive_sources:
-            if src.get("name") != "ia":
-                continue
-            identifier = src.get("identifier", "")
-            if not identifier:
-                continue
-            try:
-                files = ia.list_files(identifier)
-                if not files:
+        if platform_key not in _archive_file_cache:
+            archive_sources = platform_data.get("sources", {}).get("archive", [])
+            for src in archive_sources:
+                if src.get("name") != "ia":
                     continue
-                entries = []
-                for name, path, size in files:
-                    entries.append((name.strip(), path, size, identifier))
-                _archive_file_cache[platform_key] = entries
-            except Exception:
-                pass
+                identifier = src.get("identifier", "")
+                if not identifier:
+                    continue
+                try:
+                    files = ia.list_files(identifier)
+                    if not files:
+                        continue
+                    entries = []
+                    for name, path, size in files:
+                        entries.append((name.strip(), path, size, identifier))
+                    _archive_file_cache[platform_key] = entries
+                except Exception:
+                    pass
 
     _minerva_ready = True
 
@@ -241,6 +229,8 @@ def _build_platform_cache(platform_key):
         # Prefer compressed formats (lower index = better)
         preferred = [e.lower() for e in platform_data.get("preferred_extensions", [])]
         all_exts = [e.lower() for e in platform_data.get("extensions", [])]
+        # Minerva distributes everything as .zip — add it as valid extension
+        minerva_exts = all_exts + [".zip"]
         seen = {}
         candidates = {}  # norm -> {ext: (name, path, size, source, identifier)}
 
@@ -261,7 +251,7 @@ def _build_platform_cache(platform_key):
             if not norm:
                 continue
             ext = os.path.splitext(path)[1].lower()
-            if ext not in all_exts:
+            if ext not in minerva_exts:
                 continue
             if norm not in candidates:
                 candidates[norm] = {}
@@ -321,10 +311,11 @@ def _build_platform_cache(platform_key):
 def _build_game_cache():
     """Build the sorted game cache for ALL platforms (Switch primary)"""
     global _games_cache
-    # Ensure Minerva is loaded for non-Switch platforms
-    if not _minerva_ready:
-        _preload_minerva()
-    for platform_key in ALL_PLATFORMS:
+    # Lazy load: only preload sources for platforms not yet cached
+    uncached = [pk for pk in ALL_PLATFORMS if pk not in _games_cache]
+    if uncached:
+        _preload_sources(uncached)
+    for platform_key in uncached:
         if platform_key not in _games_cache:
             _games_cache[platform_key] = _build_platform_cache(platform_key)
 
@@ -397,7 +388,7 @@ async def api_refresh(request: Request):
         _minerva_file_cache = {}
         _archive_file_cache = {}
         _minerva_ready = False
-        _preload_minerva()
+        _preload_sources()  # Full reload on explicit refresh
         yield {"event": "status", "data": "enriching"}
         IGDBClient.load_precache()
         _games_cache = {}  # force rebuild of all platform caches
@@ -469,51 +460,35 @@ async def api_download(request: Request):
                     _download_state["log"].append(f"  IA FAIL: {str(e)[:120]}")
                 continue
 
-            # Minerva torrent download path
+            # Minerva download path (new API — per-file torrents)
             if url.startswith("minerva:"):
-                _download_state["log"].append(f"  Minerva torrent download...")
+                _download_state["log"].append(f"  Minerva download...")
                 try:
                     parts = url.split(":", 2)  # minerva:platform:path
                     platform_key = parts[1]
                     file_path = unquote(parts[2]) if len(parts) > 2 else ""
                     from .sources.minerva import MinervaSource
                     ms = MinervaSource(download_dir=cfg.get("download_dir", "."))
-                    torrent_data = ms.fetch_torrent(platform_key)
-                    if torrent_data:
-                        # Find matching file entry from cache
-                        matching_path = None
-                        if platform_key in _minerva_file_cache:
-                            for _, p, _ in _minerva_file_cache[platform_key]:
-                                if p == file_path:
-                                    matching_path = p
-                                    break
-                        if matching_path:
-                            import subprocess, tempfile
-                            tmp = tempfile.NamedTemporaryFile(suffix='.torrent', delete=False)
-                            tmp.write(torrent_data)
-                            tmp.close()
+                    rom_url = ms.get_rom_page_url(file_path)
+                    # Fetch ROM page to get magnet/torrent link
+                    from curl_cffi import requests as cffi_req
+                    r = cffi_req.get(rom_url, impersonate="chrome", timeout=30, allow_redirects=True)
+                    if r.status_code == 200:
+                        import re
+                        # Extract magnet link from page
+                        magnet_match = re.search(r'id="magnet"[^>]*href="([^"]+)"', r.text)
+                        if magnet_match:
+                            magnet_link = magnet_match.group(1)
                             out_dir = os.path.join(cfg.get("download_dir", "."), platform_key.upper())
                             os.makedirs(out_dir, exist_ok=True)
-                            # Find the file index in the torrent
-                            files = _parse_torrent_files(torrent_data)
-                            file_index = None
-                            for idx, (fp, _) in enumerate(files):
-                                if fp == file_path:
-                                    file_index = idx + 1
-                                    break
-                            if file_index:
-                                cmd = ["aria2c", "--dir", out_dir, "--select-file", str(file_index),
-                                       "--check-integrity=true", "--continue=true", tmp.name]
-                                result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
-                                _download_state["log"].append(f"  aria2c: {result.returncode}")
-                            else:
-                                _download_state["log"].append(f"  File not found in torrent")
-                            os.unlink(tmp.name)
-                            _download_state["log"].append(f"  Minerva torrent started for {game_name}")
+                            import subprocess
+                            cmd = ["aria2c", "--dir", out_dir, "--seed-time=0", magnet_link]
+                            result = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
+                            _download_state["log"].append(f"  aria2c magnet: {result.returncode}")
                         else:
-                            _download_state["log"].append(f"  Minerva file not found: {file_path}")
+                            _download_state["log"].append(f"  Minerva: no magnet link found")
                     else:
-                        _download_state["log"].append(f"  Minerva torrent fetch failed for {platform_key}")
+                        _download_state["log"].append(f"  Minerva: page fetch failed ({r.status_code})")
                 except Exception as e:
                     _download_state["log"].append(f"  Minerva FAIL: {str(e)[:120]}")
                 continue

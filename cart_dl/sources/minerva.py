@@ -1,11 +1,24 @@
-import os, subprocess, tempfile, urllib.parse
-from pathlib import Path
-import json
+"""Minerva Archive source — NEW API (post-Myrient shutdown March 2026)
+
+Minerva now uses a SQLite database (hashes.db) with per-file torrents.
+We query the directory listing API to find files, then construct magnet links
+or download individual torrent files.
+
+Directory structure: https://minerva-archive.org/browse/{collection}/{subcollection}/
+ROM page: https://minerva-archive.org/rom/?name={encoded_path}
+Torrent: /assets/{rom.torrents}
+Magnet: rom.magnet + trackers + so={rom.so_id}
+"""
+import os, re, urllib.parse
+from urllib.parse import quote
+
+from bs4 import BeautifulSoup
+from curl_cffi import requests as cffi_req
 
 MINERVA_BASE = "https://minerva-archive.org"
-MINERVA_ASSETS = f"{MINERVA_BASE}/assets/Minerva_Myrient_v0.3"
 
-PLATFORM_COLLECTIONS = {
+# Mapping from platform keys to Minerva directory paths
+PLATFORM_DIRS = {
     "switch": "No-Intro/Nintendo - Nintendo Switch",
     "wiiu": "Redump/Nintendo - Wii U - WUX",
     "wii": "Redump/Nintendo - Wii - NKit RVZ [zstd-19-128k]",
@@ -27,57 +40,97 @@ PLATFORM_COLLECTIONS = {
     "genesis": "No-Intro/Sega - Mega Drive - Genesis",
 }
 
-
-def bdecode(data, idx=0):
-    if data[idx:idx+1] == b'd':
-        idx += 1; d = {}
-        while data[idx:idx+1] != b'e':
-            k, idx = bdecode(data, idx)
-            v, idx = bdecode(data, idx)
-            d[k] = v
-        return d, idx + 1
-    elif data[idx:idx+1] == b'l':
-        idx += 1; lst = []
-        while data[idx:idx+1] != b'e':
-            v, idx = bdecode(data, idx); lst.append(v)
-        return lst, idx + 1
-    elif data[idx:idx+1] == b'i':
-        end = data.index(b'e', idx)
-        return int(data[idx+1:end]), end + 1
-    else:
-        colon = data.index(b':', idx)
-        n = int(data[idx:colon])
-        start = colon + 1
-        return data[start:start+n], start + n
+# Legacy collections kept for backward compatibility
+PLATFORM_COLLECTIONS = PLATFORM_DIRS.copy()
 
 
 class MinervaSource:
+    """Minerva Archive source — directory listing + per-file torrents"""
+
     def __init__(self, download_dir, aria2c_path="aria2c.exe"):
         self.download_dir = download_dir
         self.aria2c_path = aria2c_path
-        self.torrent_cache = {}
+        self._page_cache = {}
+        self._file_cache = {}  # platform -> [(name, path, size), ...]
+
+    def get_platform_dir(self, platform):
+        return PLATFORM_DIRS.get(platform)
 
     def get_torrent_url(self, platform):
-        collection = PLATFORM_COLLECTIONS.get(platform)
-        if not collection:
-            return None
-        encoded = urllib.parse.quote(f"Minerva_Myrient - {collection}.torrent")
-        return f"{MINERVA_ASSETS}/{encoded}"
+        """Legacy method — returns None since old collection torrents are gone"""
+        return None
 
     def fetch_torrent(self, platform):
-        url = self.get_torrent_url(platform)
-        if not url:
+        """Legacy method — returns None since old collection torrents are gone"""
+        return None
+
+    def _fetch_page(self, url):
+        if url in self._page_cache:
+            return self._page_cache[url]
+        try:
+            r = cffi_req.get(url, impersonate="chrome", timeout=30)
+            if r.status_code != 200:
+                return None
+            self._page_cache[url] = r.text
+            return r.text
+        except Exception:
             return None
-        if platform in self.torrent_cache:
-            return self.torrent_cache[platform]
-        from curl_cffi import requests
-        r = requests.get(url, impersonate="chrome", timeout=30)
-        if r.status_code != 200:
-            return None
-        self.torrent_cache[platform] = r.content
-        return r.content
+
+    def list_files(self, platform):
+        """List files in a Minerva collection by scraping directory listing"""
+        if platform in self._file_cache:
+            return self._file_cache[platform]
+
+        dir_path = self.get_platform_dir(platform)
+        if not dir_path:
+            return []
+
+        url = f"{MINERVA_BASE}/browse/{dir_path}/"
+        html = self._fetch_page(url)
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html, "html.parser")
+        entries = []
+
+        for a in soup.find_all("a", href=re.compile(r"^/rom\?name=")):
+            href = a.get("href", "")
+            name = a.get_text(strip=True)
+            if name and len(name) > 2:
+                # Decode the path from the href
+                parsed = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
+                file_path = parsed.get("name", [""])[0]
+                entries.append((name, file_path, 0))
+
+        self._file_cache[platform] = entries
+        return entries
+
+    def find_file(self, game_name, platform, extensions=None):
+        """Find a file in a Minerva collection by game name"""
+        files = self.list_files(platform)
+        if not files:
+            return None, None
+
+        search = game_name.lower().replace(" ", "").replace("-", "").replace("_", "")
+        for name, path, size in files:
+            name_norm = name.lower().replace(" ", "").replace("-", "").replace("_", "")
+            if search in name_norm or name_norm in search:
+                if extensions:
+                    ext = os.path.splitext(path)[1].lower()
+                    if ext not in extensions:
+                        continue
+                return name, path
+
+        return None, None
+
+    def get_rom_page_url(self, file_path):
+        """Get the ROM page URL for a file"""
+        encoded = quote(file_path, safe="")
+        return f"{MINERVA_BASE}/rom/?name={encoded}"
 
     def parse_torrent_files(self, torrent_data):
+        """Legacy method — kept for backward compatibility"""
+        from .minerva_legacy import bdecode
         t, _ = bdecode(torrent_data)
         info = t.get(b'info', {})
         files = []
@@ -94,20 +147,9 @@ class MinervaSource:
             files.append((name, size))
         return files
 
-    def find_file(self, torrent_data, game_name, extensions=None):
-        if extensions is None:
-            extensions = ['.rvz', '.wux', '.iso', '.3ds', '.nds', '.gba', '.n64', '.z64', '.sfc', '.nes', '.pkg', '.bin', '.cue']
-        files = self.parse_torrent_files(torrent_data)
-        search = game_name.lower().replace(' ', '')
-        for path, size in files:
-            basename = os.path.basename(path).lower()
-            basename_clean = basename.replace(' ', '').replace('_', '').replace('-', '')
-            if any(ext in basename for ext in extensions):
-                if search in basename_clean or basename_clean in search:
-                    return path, size
-        return None, None
-
     def download_file(self, torrent_data, file_path, output_dir):
+        """Legacy method — kept for backward compatibility"""
+        import subprocess, tempfile
         tmp = tempfile.NamedTemporaryFile(suffix='.torrent', delete=False)
         tmp.write(torrent_data)
         tmp.close()
