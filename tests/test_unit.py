@@ -111,7 +111,7 @@ def run():
         from cart_dl.util.io_tools import load_yml
         mod_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         cfg = load_yml(os.path.join(mod_dir, "cart_dl", "configs", "platforms.yml"))
-        assert len(cfg["platforms"]) == 18
+        assert len(cfg["platforms"]) == 19
         # Verify compressed formats are first
         gc = cfg["platforms"]["gc"]
         assert gc["extensions"][0] == ".rvz", f"GC should prefer RVZ, got {gc['extensions'][0]}"
