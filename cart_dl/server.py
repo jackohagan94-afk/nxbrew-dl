@@ -11,6 +11,7 @@ from .util.io_tools import load_yml, save_yml
 from .util.html_tools import get_game_dict
 from .util.igdb_tools import IGDBClient, filter_game_dict, DEFAULT_MIN_RATING
 from .scraper.scraper import CartDL
+from .library import LibraryScanner, PLATFORM_DIR_MAP
 
 app = FastAPI(title="cart-dl", version="0.9.0")
 
@@ -55,6 +56,14 @@ async def index():
     if template.exists():
         return template.read_text(encoding="utf-8")
     return HTMLResponse("<h1>cart-dl server running</h1>")
+
+
+@app.get("/library", response_class=HTMLResponse)
+async def library():
+    template = Path(os.path.join(MOD_DIR, "templates", "library.html"))
+    if template.exists():
+        return template.read_text(encoding="utf-8")
+    return HTMLResponse("<h1>Library page not found</h1>")
 
 
 def _normalize_name(name):
@@ -590,6 +599,42 @@ async def api_health():
         "minerva_ready": _minerva_ready,
         "platforms": len(ALL_PLATFORMS),
     })
+
+
+_library_scanner = LibraryScanner()
+
+
+@app.get("/api/library")
+async def api_library(request: Request):
+    """Get full library state — all ROMs on disk"""
+    force = request.query_params.get("force", "").lower() == "true"
+    library = _library_scanner.scan(force=force)
+    return JSONResponse(library)
+
+
+@app.get("/api/library/platform/{dir_name:path}")
+async def api_library_platform(dir_name: str):
+    """Get library data for a specific platform directory"""
+    platform = _library_scanner.get_platform(dir_name)
+    if platform is None:
+        raise HTTPException(404, f"Platform directory not found: {dir_name}")
+    return JSONResponse(platform)
+
+
+@app.get("/api/library/compare")
+async def api_library_compare():
+    """Compare local library against upstream game cache"""
+    global _games_cache
+    if not _games_cache:
+        _build_game_cache()
+    result = _library_scanner.match_against_cache(_games_cache, ALL_PLATFORMS)
+    return JSONResponse(result)
+
+
+@app.get("/api/library/map")
+async def api_library_map():
+    """Return the directory-to-platform-key mapping"""
+    return JSONResponse(PLATFORM_DIR_MAP)
 
 
 def run_server(host="127.0.0.1", port=8765, open_browser=True):

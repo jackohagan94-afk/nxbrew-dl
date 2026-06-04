@@ -38,6 +38,19 @@ PLATFORM_DIRS = {
     "xbox": "Redump/Microsoft - Xbox",
     "dc": "Redump/Sega - Dreamcast",
     "genesis": "No-Intro/Sega - Mega Drive - Genesis",
+    "gb": "No-Intro/Nintendo - Game Boy",
+    "gbc": "No-Intro/Nintendo - Game Boy Color",
+    "atari2600": "No-Intro/Atari - Atari 2600",
+    "atari5200": "No-Intro/Atari - Atari 5200",
+    "atari7800": "No-Intro/Atari - Atari 7800 (BIN)",
+    "atarijaguar": "No-Intro/Atari - Atari Jaguar (J64)",
+    "atarilynx": "No-Intro/Atari - Atari Lynx (LNX)",
+    "gamegear": "No-Intro/Sega - Game Gear",
+    "mastersystem": "No-Intro/Sega - Master System - Mark III",
+    "tg16": "No-Intro/NEC - PC Engine - TurboGrafx-16",
+    "satellaview": "No-Intro/Nintendo - Satellaview",
+    "sufami": "No-Intro/Nintendo - Sufami Turbo",
+    "neogeo": "No-Intro/SNK - NeoGeo Pocket Color",
 }
 
 # Legacy collections kept for backward compatibility

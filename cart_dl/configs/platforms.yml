@@ -413,6 +413,126 @@ platforms:
           identifier: "nointro-sega-genesis"
     download_methods: ["http", "torrent", "archive"]
 
+  gb:
+    display: "Game Boy"
+    extensions: [".gb", ".gbc"]
+    preferred_extensions: [".gb"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Nintendo - Game Boy"
+    download_methods: ["torrent"]
+
+  gbc:
+    display: "Game Boy Color"
+    extensions: [".gbc", ".gb"]
+    preferred_extensions: [".gbc"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Nintendo - Game Boy Color"
+    download_methods: ["torrent"]
+
+  atari2600:
+    display: "Atari 2600"
+    extensions: [".bin", ".a26"]
+    preferred_extensions: [".bin"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Atari - Atari 2600"
+    download_methods: ["torrent"]
+
+  atari5200:
+    display: "Atari 5200"
+    extensions: [".bin", ".a52"]
+    preferred_extensions: [".bin"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Atari - Atari 5200"
+    download_methods: ["torrent"]
+
+  atari7800:
+    display: "Atari 7800"
+    extensions: [".a78", ".bin"]
+    preferred_extensions: [".a78"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Atari - Atari 7800 (BIN)"
+    download_methods: ["torrent"]
+
+  atarijaguar:
+    display: "Atari Jaguar"
+    extensions: [".j64", ".jag", ".rom"]
+    preferred_extensions: [".j64"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Atari - Atari Jaguar (J64)"
+    download_methods: ["torrent"]
+
+  atarilynx:
+    display: "Atari Lynx"
+    extensions: [".lnx", ".lyx"]
+    preferred_extensions: [".lnx"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Atari - Atari Lynx (LNX)"
+    download_methods: ["torrent"]
+
+  gamegear:
+    display: "Sega Game Gear"
+    extensions: [".gg"]
+    preferred_extensions: [".gg"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Sega - Game Gear"
+    download_methods: ["torrent"]
+
+  mastersystem:
+    display: "Sega Master System"
+    extensions: [".sms"]
+    preferred_extensions: [".sms"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Sega - Master System - Mark III"
+    download_methods: ["torrent"]
+
+  tg16:
+    display: "TurboGrafx-16 / PC Engine"
+    extensions: [".pce", ".sgx"]
+    preferred_extensions: [".pce"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/NEC - PC Engine - TurboGrafx-16"
+    download_methods: ["torrent"]
+
+  satellaview:
+    display: "Nintendo Satellaview"
+    extensions: [".bs"]
+    preferred_extensions: [".bs"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Nintendo - Satellaview"
+    download_methods: ["torrent"]
+
+  sufami:
+    display: "Sufami Turbo"
+    extensions: [".st"]
+    preferred_extensions: [".st"]
+    sources:
+      torrent:
+        - name: "minerva"
+          collection: "No-Intro/Nintendo - Sufami Turbo"
+    download_methods: ["torrent"]
+
 # Minerva
 minerva_base: "https://minerva-archive.org"
 minerva_assets: "https://minerva-archive.org/assets/Minerva_Myrient_v0.3"

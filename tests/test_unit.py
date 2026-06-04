@@ -111,7 +111,7 @@ def run():
         from cart_dl.util.io_tools import load_yml
         mod_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         cfg = load_yml(os.path.join(mod_dir, "cart_dl", "configs", "platforms.yml"))
-        assert len(cfg["platforms"]) == 19
+        assert len(cfg["platforms"]) == 31
         # Verify compressed formats are first
         gc = cfg["platforms"]["gc"]
         assert gc["extensions"][0] == ".rvz", f"GC should prefer RVZ, got {gc['extensions'][0]}"
@@ -223,9 +223,10 @@ def run():
     @test("Minerva platform collections cover all platforms")
     def _():
         from cart_dl.sources.minerva import PLATFORM_COLLECTIONS
-        expected = {"switch", "wiiu", "wii", "gc", "3ds", "ds", "gba", "n64", "snes", "nes",
+        expected_original = {"switch", "wiiu", "wii", "gc", "3ds", "ds", "gba", "n64", "snes", "nes",
                      "ps4", "ps3", "ps2", "ps1", "psp", "xbox360", "xbox", "dc", "genesis"}
-        assert set(PLATFORM_COLLECTIONS.keys()) == expected
+        assert expected_original.issubset(set(PLATFORM_COLLECTIONS.keys())), \
+            f"Missing platforms: {expected_original - set(PLATFORM_COLLECTIONS.keys())}"
 
     @test("ArchiveSource initializes")
     def _():

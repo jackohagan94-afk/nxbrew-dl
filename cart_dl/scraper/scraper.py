@@ -73,6 +73,7 @@ class CartDL:
         logger=None,
         jd_device=None,
         dead_hosts=None,
+        skip_cleanup=False,
     ):
         """Handles downloading files
 
@@ -166,6 +167,7 @@ class CartDL:
         self.update_progressBar = update_progressBar
 
         self.dry_run = self.user_config.get("dry_run", False)
+        self.skip_cleanup = skip_cleanup
 
     def run(self):
         """Run cart-dl"""
@@ -733,7 +735,12 @@ class CartDL:
         # Query status occasionally, to make sure the download is complete and
         # extraction is done
         finished = False
+        max_wait = self.user_config.get("jd_max_wait_seconds", 1800)  # 30 min default
+        wait_start = time.time()
         while not finished:
+            if time.time() - wait_start > max_wait:
+                self.logger.warning(f"\t\tDownload timeout after {max_wait}s")
+                return False
             time.sleep(1)
             dl_status = self.jd_device.downloads.query_packages(
                 [
@@ -774,14 +781,16 @@ class CartDL:
         self.logger.info("\t\tFiles successfully downloaded")
 
         # And finally, cleanup
-        self.jd_device.downloads.cleanup(
-            action="DELETE_FINISHED",
-            mode="REMOVE_LINKS_ONLY",
-            selection_type="SELECTED",
-            package_ids=[package_id],
-        )
-
-        self.logger.info("\t\tLinks removed from JDownloader")
+        if not self.skip_cleanup:
+            self.jd_device.downloads.cleanup(
+                action="DELETE_FINISHED",
+                mode="REMOVE_LINKS_ONLY",
+                selection_type="SELECTED",
+                package_ids=[package_id],
+            )
+            self.logger.info("\t\tLinks removed from JDownloader")
+        else:
+            self.logger.info("\t\tSkipping cleanup — links remain in JDownloader")
 
         return True
 

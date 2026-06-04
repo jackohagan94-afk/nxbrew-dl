@@ -6,7 +6,7 @@ sys.path.insert(0, SRC_DIR)
 
 from fastapi.testclient import TestClient
 from cart_dl.server import app, _games_cache, _minerva_file_cache, _archive_file_cache, _minerva_ready, ALL_PLATFORMS
-from cart_dl.sources.archive import ArchiveSource
+from cart_dl.sources.archive import ArchiveSource, IA_DOWNLOAD
 from cart_dl.sources.minerva import MinervaSource
 
 client = TestClient(app)
@@ -49,7 +49,7 @@ def run():
         assert len(games) > 0, "No Switch games found"
         for g in games:
             assert g['url'].startswith('https://'), f"Switch URL not HTTP: {g['url']}"
-            assert 'nxbrew.net' in g['url'] or 'nswgame.com' in g['url'] or 'switch-roms.com' in g['url'] or 'ziperto.com' in g['url'], f"Unexpected Switch source: {g['url']}"
+            assert 'nxbrew.net' in g['url'] or 'nxbrew.me' in g['url'] or 'nswgame.com' in g['url'] or 'switch-roms.com' in g['url'] or 'ziperto.com' in g['url'], f"Unexpected Switch source: {g['url']}"
 
     # ---- Test 2: Non-Switch platforms have minerva:/archive: URLs ----
     @test("Non-Switch platforms use minerva:/archive: URL scheme")
@@ -213,19 +213,19 @@ def run():
     # ---- Test 13: ArchiveSource direct download URL generation ----
     @test("ArchiveSource generates valid download URLs")
     def _():
-        a = ArchiveSource(download_dir=".")
         # Test with a known IA identifier
-        url = f"{a.IA_DOWNLOAD}/redump-sony-ps2/test.iso"
+        url = f"{IA_DOWNLOAD}/redump-sony-ps2/test.iso"
         assert 'archive.org/download' in url
 
-    # ---- Test 14: MinervaSource torrent URL generation ----
-    @test("MinervaSource generates valid torrent URLs")
+    # ---- Test 14: MinervaSource new API helpers ----
+    @test("MinervaSource lists files and builds ROM page URLs")
     def _():
         ms = MinervaSource(download_dir=".")
-        for pk in ['ps2', 'ps3', 'n64', 'snes']:
-            url = ms.get_torrent_url(pk)
-            assert url is not None, f"No torrent URL for {pk}"
-            assert url.startswith('https://minerva-archive.org'), f"Invalid Minerva URL for {pk}: {url}"
+        files = ms.list_files('ps2')
+        assert len(files) > 0, "No PS2 files listed from Minerva"
+        _, path, _ = files[0]
+        rom_url = ms.get_rom_page_url(path)
+        assert rom_url.startswith('https://minerva-archive.org/rom/'), f"Invalid Minerva ROM URL: {rom_url}"
 
     # ---- Test 15: HTTP source imports work ----
     @test("HTTP source modules import correctly")
